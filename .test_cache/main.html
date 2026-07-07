@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoGen 即梦工作流</title>
+  <style>
+    :root {
+      --bg: #0f0f17;
+      --panel: #1a1a26;
+      --border: #2a2a3a;
+      --text: #e6e6f0;
+      --muted: #8a8aa0;
+      --accent: #7c5cff;
+      --user: #58a6ff;
+      --error: #ff6b6b;
+
+      --host: #58a6ff;
+      --writer: #b07cff;
+      --storyboard: #4ec9b0;
+      --dp: #d4a017;
+      --director: #ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+    }
+    #root {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: row;
+    }
+
+    /* 侧栏（M12） */
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .sidebar-header button {
+      width: 100%;
+      padding: 8px;
+      font-size: 13px;
+    }
+    .sidebar-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+    .sidebar-item {
+      padding: 10px 14px;
+      border-left: 3px solid transparent;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .sidebar-item:hover { background: rgba(255,255,255,0.03); }
+    .sidebar-item.active {
+      border-left-color: var(--accent);
+      background: rgba(124, 92, 255, 0.08);
+    }
+    .sidebar-item .title {
+      font-size: 13px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+    .sidebar-item .meta {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .sidebar-item .badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      background: var(--border);
+      color: var(--muted);
+    }
+    .sidebar-item .badge.complete { background: var(--storyboard); color: black; }
+    .sidebar-item .badge.after_writer { background: var(--dp); color: black; }
+    .sidebar-item .badge.running { background: var(--accent); color: white; }
+    .sidebar-item.no-fact { opacity: 0.5; }
+    .sidebar-disabled {
+      pointer-events: none;
+      opacity: 0.4;
+    }
+    .sidebar-empty {
+      padding: 20px 14px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+    }
+    header {
+      flex-shrink: 0;
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    header h1 { margin: 0; font-size: 16px; font-weight: 600; }
+    .status {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      background: var(--border);
+      color: var(--muted);
+    }
+    .status.running { background: var(--accent); color: white; }
+    .status.paused { background: var(--dp); color: black; }
+    .status.done { background: var(--storyboard); color: black; }
+    .status.error { background: var(--error); color: white; }
+
+    main {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 群聊区 */
+    .chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+      scroll-behavior: smooth;
+    }
+    .msg {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      align-items: flex-start;
+    }
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: black;
+      flex-shrink: 0;
+    }
+    .avatar.host { background: var(--host); }
+    .avatar.writer { background: var(--writer); color: white; }
+    .avatar.storyboard { background: var(--storyboard); }
+    .avatar.dp { background: var(--dp); }
+    .avatar.director { background: var(--director); color: white; }
+    .avatar.user { background: var(--user); color: white; }
+    .avatar.system { background: var(--muted); color: white; }
+
+    .bubble {
+      flex: 1;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      line-height: 1.6;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    /* 原文模式（流式中、用户消息）保留换行 */
+    .bubble.raw {
+      white-space: pre-wrap;
+    }
+    /* MD 渲染模式：让 marked 输出的 <p>/<h2> 等自己控制换行 */
+    .bubble.md-rendered {
+      white-space: normal;
+    }
+    .bubble.md-rendered h1 { font-size: 18px; margin: 0 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+    .bubble.md-rendered h2 { font-size: 15px; margin: 14px 0 6px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 2px; }
+    .bubble.md-rendered h3 { font-size: 14px; margin: 10px 0 4px; color: var(--writer); }
+    .bubble.md-rendered h4 { font-size: 13px; margin: 8px 0 4px; color: var(--dp); }
+    .bubble.md-rendered p { margin: 6px 0; }
+    .bubble.md-rendered ul, .bubble.md-rendered ol { padding-left: 22px; margin: 6px 0; }
+    .bubble.md-rendered li { margin: 2px 0; }
+    .bubble.md-rendered blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 4px 10px;
+      margin: 6px 0;
+      color: var(--muted);
+      background: rgba(124, 92, 255, 0.05);
+    }
+    .bubble.md-rendered code {
+      font-family: ui-monospace, monospace;
+      background: var(--bg);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .bubble.md-rendered pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    .bubble.md-rendered hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+    .bubble.md-rendered strong { color: var(--text); }
+    .bubble.md-rendered em { color: var(--muted); font-style: italic; }
+    .bubble.md-rendered table {
+      border-collapse: collapse;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+    .bubble.md-rendered th, .bubble.md-rendered td {
+      border: 1px solid var(--border);
+      padding: 4px 8px;
+    }
+    .bubble.md-rendered a { color: var(--accent); text-decoration: underline; }
+    .bubble.streaming::after {
+      content: "▍";
+      animation: blink 1s infinite;
+      color: var(--accent);
+    }
+    @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+    .bubble .role-name {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* 暂停面板 */
+    .pause-panel {
+      background: var(--panel);
+      border: 1px solid var(--dp);
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    .pause-panel h3 { margin: 0 0 12px 0; font-size: 14px; color: var(--dp); }
+    .pause-panel .writer-preview {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: ui-monospace, "Cascadia Code", monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      margin-bottom: 12px;
+    }
+    .pause-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* 输入区 */
+    .input-area {
+      flex-shrink: 0;
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      background: var(--panel);
+    }
+    .input-row {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      gap: 8px;
+    }
+    textarea {
+      flex: 1;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 14px;
+      resize: vertical;
+      min-height: 44px;
+      max-height: 160px;
+    }
+    textarea:focus { outline: none; border-color: var(--accent); }
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover:not(:disabled) { opacity: 0.85; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.secondary {
+      background: var(--border);
+      color: var(--text);
+    }
+    button.danger { background: var(--error); }
+    button.success { background: var(--storyboard); color: black; }
+
+    /* 内部信息折叠 */
+    .internal-note {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 4px 12px;
+      text-align: center;
+      font-style: italic;
+    }
+    .toggle-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 4px 24px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .toggle-row label {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    /* 产物 tab */
+    .results {
+      border-top: 1px solid var(--border);
+      background: var(--panel);
+      max-height: 50vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab {
+      padding: 10px 18px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+    }
+    .tab.active {
+      color: var(--text);
+      border-bottom-color: var(--accent);
+    }
+    .tab-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 24px;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    /* MD 渲染样式（产物 tab 用） */
+    .md-body h1 { font-size: 22px; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .md-body h2 { font-size: 17px; margin: 20px 0 10px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+    .md-body h3 { font-size: 15px; margin: 16px 0 8px; color: var(--writer); }
+    .md-body h4 { font-size: 14px; margin: 12px 0 6px; color: var(--dp); }
+    .md-body p { margin: 8px 0; }
+    .md-body ul, .md-body ol { padding-left: 24px; margin: 8px 0; }
+    .md-body li { margin: 4px 0; }
+    .md-body blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 4px 12px;
+      margin: 8px 0;
+      color: var(--muted);
+      background: rgba(124, 92, 255, 0.05);
+    }
+    .md-body code {
+      font-family: ui-monospace, monospace;
+      background: var(--bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+    }
+    .md-body pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      overflow-x: auto;
+    }
+    .md-body pre code { background: none; border: none; padding: 0; }
+    .md-body hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+    .md-body strong { color: var(--text); }
+    .md-body em { color: var(--muted); }
+
+    /* 错误 */
+    .error-msg {
+      background: var(--error);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin: 8px 0;
+    }
+
+    .session-id {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: ui-monospace, monospace;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="build-tag" style="position:fixed;bottom:8px;right:8px;background:#7c5cff;color:white;padding:4px 10px;border-radius:12px;font:11px ui-monospace,monospace;z-index:10000;pointer-events:none;">
+    build: 2026-06-29-v13
+  </div>
+  <div id="boot" style="position:fixed;top:0;left:0;right:0;background:#222;color:#fff;padding:8px 16px;font:13px ui-monospace,monospace;z-index:9999;text-align:center;">
+    ⏳ 加载中…（build 2026-06-29-v13） clicks: <span id="click-count">0</span>
+  </div>
+  <div id="native-test" style="position:fixed;top:80px;right:10px;z-index:9999;">
+    <button onclick="document.getElementById('native-out').textContent='✓ 原生 OK';this.style.background='#5c5';this.textContent='✓ 原生 OK'" style="padding:8px 12px;background:#ff6b6b;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;">① 测试原生 JS</button>
+    <span id="native-out" style="margin-left:8px;color:#5c5;font:12px monospace;"></span>
+  </div>
+  <script>
+    // 越早越好：把 boot 元素 id 记下，React 挂载成功后删掉
+    window.__bootEl = document.getElementById('boot');
+    // 全局 click 计数器：任何点击都会触发（绕过 React），帮助诊断
+    window.__clickCount = 0;
+    const clickCountEl = document.getElementById('click-count');
+    // 兜底 click 委托：如果 React 18 UMD 事件委托在某些浏览器坏掉，
+    // 这里用原生 addEventListener 接管所有 [data-action] 元素
+    document.addEventListener('click', (ev) => {
+      window.__clickCount++;
+      if (clickCountEl) clickCountEl.textContent = window.__clickCount;
+      const t = ev.target;
+      const tag = t && t.tagName;
+      const txt = (t && t.textContent || '').trim().slice(0, 20);
+      console.log('[global-click]', window.__clickCount, tag, '"' + txt + '"');
+
+      const H = window.__appHandlers;
+      if (!H) return;
+
+      // 兜底1：侧栏 session 项（带 data-sid）
+      const item = t && t.closest && t.closest('.sidebar-item[data-sid]');
+      if (item) {
+        const sid = item.getAttribute('data-sid');
+        console.log('[fallback] sidebar item click, sid=' + sid);
+        if (H.selectSession) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          H.selectSession(sid);
+          return;
+        }
+      }
+
+      // 兜底2：所有 [data-action] 元素（含 tab-N / closeDrawer / openDrawer）
+      const btn = t && t.closest && t.closest('[data-action]');
+      if (btn && !btn.disabled) {
+        const action = btn.getAttribute('data-action');
+        console.log('[fallback] button click, action=' + action);
+        // M13：tab-N 走 setTab handler
+        if (action && action.startsWith('tab-')) {
+          const epId = parseInt(action.slice(4), 10);
+          if (H.setTab && !isNaN(epId)) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            H.setTab(epId);
+            return;
+          }
+        }
+        const handler = H[action];
+        if (handler) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          handler();
+          return;
+        }
+      }
+    }, true);
+  </script>
+
+  <script src="file:///D:/myproject/AutoGen_gmeng/.test_cache/react.js"></script>
+  <script src="file:///D:/myproject/AutoGen_gmeng/.test_cache/dom.js"></script>
+  <script src="file:///D:/myproject/AutoGen_gmeng/.test_cache/marked.js"></script>
+  <script>
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
+    const e = React.createElement;
+
+    // MD 渲染缓存：避免每个 token 重跑 marked（流式时几十 token/s 的话会卡）
+    const mdCache = new Map();
+    function cachedMarkdown(text) {
+      if (!text) return '';
+      let hit = mdCache.get(text);
+      if (hit !== undefined) return hit;
+      // 缓存满时清空（流式产生的中间状态不会重复出现）
+      if (mdCache.size > 200) mdCache.clear();
+      hit = safeMarkdown(text);
+      mdCache.set(text, hit);
+      return hit;
+    }
+
+    // 安全的 MD 渲染：异常时降级为原文（保留换行）
+    function safeMarkdown(text) {
+      if (!text) return '';
+      try {
+        // marked 5+ 同步返回 string；9+ 仍然是同步的
+        const out = marked.parse(text);
+        if (out && typeof out === 'string') return out;
+        if (out && typeof out.then === 'function') {
+          return '<pre style="white-space:pre-wrap;margin:0;font-family:inherit;">' + escapeHtml(text) + '</pre>';
+        }
+        return '<pre style="white-space:pre-wrap;margin:0;font-family:inherit;">' + escapeHtml(text) + '</pre>';
+      } catch (err) {
+        console.warn('[marked] parse failed:', err && err.message);
+        return '<pre style="white-space:pre-wrap;margin:0;font-family:inherit;">' + escapeHtml(text) + '</pre>';
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // 角色配色
+    const ROLE_META = {
+      Host:       { color: 'host',       short: '主持', label: 'Host 主持人' },
+      Writer:     { color: 'writer',     short: '作家', label: 'Writer 作家' },
+      Storyboard: { color: 'storyboard', short: '分镜', label: 'Storyboard 分镜师' },
+      DP:         { color: 'dp',         short: '摄影', label: 'DP 摄影指导' },
+      Director:   { color: 'director',   short: '导演', label: 'Director 导演' },
+      user:       { color: 'user',       short: '我',  label: '你（用户）' },
+      system:     { color: 'system',     short: 'sys', label: '系统' },
+    };
+
+    function avatarClass(role) {
+      const meta = ROLE_META[role] || ROLE_META.system;
+      return "avatar " + meta.color;
+    }
+
+    function statusLabel(state) {
+      const map = {
+        idle:           { text: '空闲',    cls: '' },
+        running_step1:  { text: 'Step 1 跑中（Host + Writer）', cls: 'running' },
+        after_writer:   { text: 'Step 1 完成，等你 review', cls: 'paused' },
+        running_rewrite:{ text: 'Writer 重写中', cls: 'running' },
+        running_step2:  { text: 'Step 2 跑中（Storyboard → DP → Director）', cls: 'running' },
+        complete:       { text: '完成',     cls: 'done' },
+        error:          { text: '出错了',   cls: 'error' },
+      };
+      return map[state] || { text: state, cls: '' };
+    }
+
+    function App() {
+      console.log('[App] render start');
+      const [messages, setMessages] = useState([]);     // {role, content, isFinal}
+      const [state, setState] = useState('idle');
+      const [sessionId, setSessionId] = useState(null);     // 当前 WebSocket 正在跑的 session_id
+      const [activeSid, setActiveSid] = useState(null);     // M12：聊天区当前显示的 session_id
+      const [sessions, setSessions] = useState([]);         // M12：侧栏列表
+      const [loadingSession, setLoadingSession] = useState(false);
+      const [writerOutput, setWriterOutput] = useState('');
+      const [input, setInput] = useState('');
+      // M13: tabs 化多集展示
+      const [resultsTabs, setResultsTabs] = useState([]);   // [{ep_id, title, inspiration_preview, content, created_at}, ...]
+      const [activeTabId, setActiveTabId] = useState(null); // 当前选中的 ep_id
+      const [resultsVisible, setResultsVisible] = useState(true);  // 画框显示/隐藏
+      const [error, setError] = useState(null);
+      const wsRef = useRef(null);
+      const chatRef = useRef(null);
+
+      // 派生：当前 activeSid 对应的 session 信息
+      const activeSession = sessions.find(s => s.session_id === activeSid) || null;
+      // viewing 态：在看老 session（不是刚发 start 跑出来的新 session）
+      const isViewing = !!(activeSid && activeSid !== sessionId);
+      // 跑中时禁用侧栏
+      const isRunning = state === 'running_step1' || state === 'running_step2' || state === 'running_rewrite';
+      // viewing 态且有 fact_sheet → 可以 fork
+      const canForkFromViewing = isViewing && !!activeSession && !!activeSession.has_fact_sheet;
+
+      // ============== 副作用 ==============
+
+      // 自动滚到底部（仅当用户已经在底部时）
+      useEffect(() => {
+        if (!chatRef.current) return;
+        const el = chatRef.current;
+        const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+        if (isAtBottom) {
+          el.scrollTop = el.scrollHeight;
+        }
+      }, [messages]);
+
+      // ============== 业务函数（先声明所有函数） ==============
+
+      const loadSessions = useCallback(async () => {
+        try {
+          const resp = await fetch('/api/sessions');
+          if (!resp.ok) throw new Error('fetch sessions failed');
+          const data = await resp.json();
+          setSessions(data || []);
+        } catch (err) {
+          console.error('[loadSessions] failed:', err);
+        }
+      }, []);
+
+      // M12: "+ 新会话" → 清空当前，回到 idle（M13：tabs 也清空）
+      const handleNewSession = useCallback(() => {
+        if (isRunning) return;
+        setMessages([]);
+        setWriterOutput('');
+        setResultsTabs([]);
+        setActiveTabId(null);
+        setResultsVisible(true);
+        setError(null);
+        setActiveSid(null);
+        setState('idle');
+      }, [isRunning]);
+
+      // M12+M13: 点侧栏 session → 拉详情 → 重载聊天区 + tabs
+      const handleSelectSession = useCallback(async (sid) => {
+        if (isRunning) return;
+        if (sid === activeSid) return;     // 点自己 no-op
+        setLoadingSession(true);
+        setError(null);
+        try {
+          const resp = await fetch(`/api/sessions/${encodeURIComponent(sid)}`);
+          if (!resp.ok) throw new Error(`session ${sid} not found`);
+          const data = await resp.json();
+          setMessages((data.messages || []).map(m => ({
+            role: m.role,
+            content: m.content,
+            isFinal: true,
+          })));
+          setWriterOutput(data.writer_output || '');
+          // M13：填充 tabs 列表
+          const tabs = data.prompts || [];
+          setResultsTabs(tabs);
+          setActiveTabId(tabs.length > 0 ? tabs[tabs.length - 1].ep_id : null);
+          setResultsVisible(tabs.length > 0);
+          const step = data.current_step || 'start';
+          if (step === 'complete') {
+            setState('complete');
+          } else if (step === 'after_writer') {
+            setState('after_writer');
+          } else {
+            setState('idle');
+          }
+          setActiveSid(sid);
+        } catch (err) {
+          console.error('[handleSelectSession] failed:', err);
+          setError(`加载 session 失败: ${err.message}`);
+        } finally {
+          setLoadingSession(false);
+        }
+      }, [isRunning, activeSid]);
+
+      // ============== 过滤：内部信息不展示给用户 ==============
+      // - Host 是工具内的参数解析器，不展示
+      // - "system" role 是 validator feedback（M3.4 retry 自动注入），不展示
+      // - role="user" 但内容是 task preload（"[用户灵感]..."），不展示（避免和用户真实输入重复）
+      // - 角色真实输出 (Writer/Storyboard/DP/Director) 才展示
+      const isInternalMessage = (role, content) => {
+        if (role === 'Host') return true;
+        if (role === 'system') return true;
+        if (role === 'user' && typeof content === 'string') {
+          if (content.startsWith('[用户灵感]')) return true;     // task preload
+          if (content.includes('[系统]')) return true;            // validator feedback
+          if (content.includes('[流程说明]')) return true;
+          if (content.startsWith('[用户反馈')) return true;       // M11 rewrite
+        }
+        return false;
+      };
+
+      // ============== 去重：同 role 同内容重复时不重复加 ==============
+      // 解决 retry 时 Director 输出两次的问题
+      // - 完全相同内容 → 视为重复
+      // - 内容前缀相同（≥80 字）→ 视为重复（M7 修复：AutoGen 偶尔会让 Director 跑两次，
+      //   两次内容不会字字相同但开头会一致；保守地按 80 字前缀判重）
+      const isDuplicate = (prev, role, content) => {
+        if (!content) return false;
+        const head = content.slice(0, 80);
+        return prev.some(m => {
+          if (m.role !== role || !m.isFinal) return false;
+          if (m.content === content) return true;       // 完全相同
+          if (head.length >= 80 && m.content.length >= 80 && m.content.slice(0, 80) === head) {
+            return true;                                // 前 80 字相同
+          }
+          return false;
+        });
+      };
+
+      const handleServerMessage = useCallback((msg) => {
+        const t = msg.type;
+
+        if (t === 'token') {
+          if (isInternalMessage(msg.role, msg.content)) return;
+          setMessages((prev) => {
+            const lastSameRole = [...prev].reverse().find(m => m.role === msg.role);
+            if (lastSameRole && lastSameRole.isFinal) {
+              return prev;
+            }
+            const last = prev[prev.length - 1];
+            if (last && last.role === msg.role && !last.isFinal) {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                ...last,
+                content: last.content + msg.content,
+              };
+              return updated;
+            } else {
+              return [...prev, {
+                role: msg.role,
+                content: msg.content,
+                isFinal: false,
+              }];
+            }
+          });
+        } else if (t === 'message') {
+          if (isInternalMessage(msg.role, msg.content)) return;
+          setMessages((prev) => {
+            if (isDuplicate(prev, msg.role, msg.content)) return prev;
+            const updated = [...prev];
+            for (let i = updated.length - 1; i >= 0; i--) {
+              if (updated[i].role === msg.role && !updated[i].isFinal) {
+                updated[i] = { ...updated[i], content: msg.content, isFinal: true };
+                return updated;
+              }
+            }
+            updated.push({ role: msg.role, content: msg.content, isFinal: true });
+            return updated;
+          });
+        } else if (t === 'status') {
+          setState(msg.state);
+          if (msg.session_id) {
+            setSessionId(msg.session_id);
+            setActiveSid(msg.session_id);
+          }
+          if (msg.writer_output !== undefined) setWriterOutput(msg.writer_output);
+          loadSessions();
+        } else if (t === 'result') {
+          // M13：result 追加到 tabs（多集共享一个 session）
+          const newInspiration = msg.inspiration_preview || '';
+          const newContent = msg.prompt || '';
+          setResultsTabs((prev) => {
+            // 确定 ep_id：优先用后端给的，否则为 (prev_max + 1)
+            let epId = msg.ep_id;
+            if (epId == null) {
+              const maxEp = prev.reduce((m, t) => Math.max(m, t.ep_id || 0), 0);
+              epId = maxEp + 1;
+            }
+            // 替换同 ep_id（重写时），否则追加
+            const filtered = prev.filter(t => t.ep_id !== epId);
+            const next = [...filtered, {
+              ep_id: epId,
+              title: `集 ${epId}`,
+              inspiration_preview: newInspiration,
+              content: newContent,
+              created_at: new Date().toISOString(),
+            }];
+            // 切到新 tab
+            setActiveTabId(epId);
+            return next;
+          });
+          setResultsVisible(true);
+          setState('complete');
+          if (msg.session_id) {
+            setSessionId(msg.session_id);
+            setActiveSid(msg.session_id);
+          }
+          loadSessions();
+        } else if (t === 'error') {
+          setError(msg.message);
+          setState('error');
+        }
+      }, [loadSessions]);
+
+      const send = useCallback((payload) => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          setError('WebSocket 未连接（请检查后端是否启动）');
+          return;
+        }
+        setError(null);
+        wsRef.current.send(JSON.stringify(payload));
+      }, []);
+
+      const handleStart = useCallback(() => {
+        if (!input.trim()) {
+          setError('请输入灵感');
+          return;
+        }
+        // M13：3 个分支
+        // 1. state==='complete' 且 activeSid → 续写下一集（同 session）
+        // 2. state==='idle' 且 isViewing → 显式续接（向后兼容旧前端逻辑：fork 子 session）
+        // 3. state==='idle' → 新建 session
+        const isNextEpisode = state === 'complete' && activeSid;
+        let payload;
+        if (isNextEpisode) {
+          setMessages(prev => [...prev, {
+            role: 'user',
+            content: '[续写] ' + input,
+            isFinal: true,
+          }]);
+          payload = { type: 'start', raw_text: input, session_id: activeSid };
+        } else if (isViewing && canForkFromViewing) {
+          // 旧 fork 兼容路径（M12）—— 新前端不用
+          setMessages([{
+            role: 'user',
+            content: input + '（fork 自 ' + activeSid + '）',
+            isFinal: true,
+          }]);
+          payload = {
+            type: 'start',
+            raw_text: input,
+            parent_session_id: activeSid,
+          };
+        } else if (isViewing && !canForkFromViewing) {
+          setError('该 session 无 fact_sheet，无法续接（请新建或选有 fact_sheet 的 session）');
+          return;
+        } else {
+          setMessages([{
+            role: 'user',
+            content: input,
+            isFinal: true,
+          }]);
+          payload = { type: 'start', raw_text: input };
+        }
+        send(payload);
+        setInput('');
+      }, [input, canForkFromViewing, activeSid, isViewing, state, send]);
+
+      const handleContinue = useCallback(() => {
+        const sid = activeSid || sessionId;
+        if (!sid) return;
+        setMessages((prev) => [...prev, {
+          role: 'user',
+          content: '[继续] 跑 Step 2',
+          isFinal: true,
+        }]);
+        send({ type: 'continue', session_id: sid });
+      }, [activeSid, sessionId, send]);
+
+      const handleRewrite = useCallback(() => {
+        if (!input.trim()) {
+          setError('请输入反馈');
+          return;
+        }
+        const sid = activeSid || sessionId;
+        if (!sid) return;
+        setMessages((prev) => [...prev, {
+          role: 'user',
+          content: '[反馈] ' + input,
+          isFinal: true,
+        }]);
+        send({
+          type: 'rewrite',
+          session_id: sid,
+          feedback: input,
+        });
+        setInput('');
+      }, [input, activeSid, sessionId, send]);
+
+      // M13 deprecated: handleUserAddition 不再使用
+      // 后端收到 {type:'user_addition'} 仍兼容但 no-op（user_additions 字段已删）
+      const handleUserAddition = useCallback(() => {
+        // 留空以防后端兼容逻辑被触发；新前端不用
+        console.warn('[M13] user_addition 已废弃，请用 写下一集 按钮或 重写本集');
+      }, []);
+
+      const handleKeyDown = useCallback((ev) => {
+        if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
+          ev.preventDefault();
+          if (state === 'idle' && input.trim()) handleStart();
+          else if (state === 'after_writer' && input.trim()) handleRewrite();
+          else if (state === 'complete' && input.trim()) handleStart();
+        }
+      }, [state, input, handleStart, handleRewrite]);
+
+      // ============== 副作用：WebSocket + 拉侧栏（放在所有 handler 之后） ==============
+
+      // WebSocket 连接
+      useEffect(() => {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${proto}//${location.host}/ws`);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          console.log('[ws] connected');
+        };
+
+        ws.onmessage = (ev) => {
+          let msg;
+          try { msg = JSON.parse(ev.data); } catch (e) {
+            console.warn('[ws] bad json:', ev.data);
+            return;
+          }
+          handleServerMessage(msg);
+        };
+
+        ws.onerror = (err) => {
+          console.error('[ws] error', err);
+          setError('WebSocket 连接错误');
+        };
+
+        ws.onclose = () => {
+          console.log('[ws] closed');
+        };
+
+        return () => ws.close();
+      }, [handleServerMessage]);
+
+      // 挂载时拉侧栏列表
+      useEffect(() => { loadSessions(); }, [loadSessions]);
+
+      // 兜底：把所有 handler 暴露到 window，让 document 委托能调用
+      useEffect(() => {
+        window.__appHandlers = {
+          selectSession: handleSelectSession,
+          newSession: handleNewSession,
+          refreshList: loadSessions,
+          start: handleStart,
+          rewrite: handleRewrite,
+          continue: handleContinue,
+          userAddition: handleUserAddition,
+          clearInput: () => setInput(''),
+          // M13：drawer / tab 操作
+          closeDrawer: () => setResultsVisible(false),
+          openDrawer: () => setResultsVisible(true),
+          setTab: (epId) => setActiveTabId(epId),
+        };
+        console.log('[App] handlers exposed to window.__appHandlers');
+      }, [handleSelectSession, handleNewSession, loadSessions, handleStart, handleRewrite, handleContinue, handleUserAddition]);
+
+      const sl = statusLabel(state);
+
+      // M12: 侧栏列表项渲染
+      const renderSidebar = () => {
+        return e('div', { className: 'sidebar' + (isRunning ? ' sidebar-disabled' : '') },
+          e('div', { className: 'sidebar-header' },
+            e('button', { 'data-action': 'newSession', onClick: handleNewSession, disabled: isRunning },
+              '＋ 新会话'),
+            e('button', { className: 'secondary', 'data-action': 'refreshList', onClick: loadSessions, disabled: isRunning, style: { fontSize: 11 } },
+              '🔄 刷新列表'),
+          ),
+          e('div', { className: 'sidebar-list' },
+            sessions.length === 0
+              ? e('div', { className: 'sidebar-empty' }, '暂无 session')
+              : sessions.map(s => {
+                  const isActive = s.session_id === activeSid;
+                  const noFact = !s.has_fact_sheet;
+                  const epCount = s.current_episode || 1;
+                  return e('div', {
+                    key: s.session_id,
+                    'data-sid': s.session_id,
+                    className: 'sidebar-item' +
+                      (isActive ? ' active' : '') +
+                      (noFact ? ' no-fact' : ''),
+                    onClick: () => handleSelectSession(s.session_id),
+                    title: s.session_id + (noFact ? '（无 fact_sheet，无法续接）' : ''),
+                  },
+                    e('div', { className: 'title' }, s.title || s.session_id),
+                    e('div', { className: 'meta' },
+                      e('span', { className: 'badge ' + (s.current_step || 'start') }, s.current_step || 'start'),
+                      // M13：显示已写集数
+                      epCount > 1 && e('span', { style: { fontSize: 10, color: 'var(--writer)' } }, `📺 ${epCount} 集`),
+                      s.parent_session_id && e('span', { style: { fontSize: 10 } }, '↳ fork 旧版'),
+                      s.created_at && e('span', null, s.created_at.slice(5, 16).replace('T', ' ')),
+                    ),
+                    s.current_inspiration && epCount > 1 && e('div', {
+                      style: { fontSize: 11, color: 'var(--muted)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+                    }, '最新灵感: ' + s.current_inspiration.slice(0, 18)),
+                  );
+                }),
+          ),
+        );
+      };
+
+      return e('div', { style: { display: 'flex', flexDirection: 'row', width: '100%', height: '100%' } },
+        renderSidebar(),
+
+        e('main', null,
+          e('header', null,
+            e('h1', null, '🎬 AutoGen 即梦工作流'),
+            e('span', { className: 'status ' + sl.cls }, sl.text),
+            activeSid && e('span', { className: 'session-id' }, 'sid: ' + activeSid + (isViewing ? '（查看）' : '')),
+            isViewing && e('span', {
+              className: 'session-id',
+              style: { color: canForkFromViewing ? 'var(--storyboard)' : 'var(--error)' },
+            }, canForkFromViewing ? '✏️ 可在此基础上写续集' : '⚠ 无 fact_sheet，无法续接'),
+          ),
+
+          // 群聊区
+          e('div', { className: 'chat', ref: chatRef },
+            messages.length === 0 && state === 'idle' && e('div', { style: { color: 'var(--muted)', textAlign: 'center', padding: '40px 0' } },
+              '👋 输入灵感开始生成视频脚本'),
+            loadingSession && e('div', { style: { color: 'var(--muted)', textAlign: 'center', padding: '20px 0' } },
+              '⏳ 加载中...'),
+            messages.map((m, i) => {
+              const meta = ROLE_META[m.role] || ROLE_META.system;
+              const isUser = m.role === 'user';
+              // 渲染策略：
+              // - 用户消息：原文（raw），保留回车
+              // - 角色消息：永远走 MD 渲染（流式中也是，deepseek/ChatGPT 那种效果）
+              const bubbleClass = 'bubble ' +
+                (isUser ? 'raw' : 'md-rendered') +
+                (!m.isFinal ? ' streaming' : '');
+              return e('div', { key: i, className: 'msg' },
+                e('div', { className: avatarClass(m.role) }, meta.short),
+                e('div', { className: bubbleClass },
+                  e('div', { className: 'role-name' }, meta.label),
+                  isUser
+                    ? m.content
+                    : e('div', { dangerouslySetInnerHTML: { __html: cachedMarkdown(m.content) } }),
+                ),
+              );
+            }),
+
+            // 暂停面板（after_writer 时）
+            state === 'after_writer' && e('div', { className: 'pause-panel' },
+              e('h3', null, '⏸ Step 1 完成 — Writer 已产出故事'),
+              writerOutput && e('div', { className: 'writer-preview' }, writerOutput),
+              e('div', { className: 'pause-actions' },
+                e('button', { className: 'success', 'data-action': 'continue', onClick: handleContinue, disabled: isRunning },
+                  isViewing ? '✅ 接着跑 Step 2' : '✅ 满意，跑 Step 2'),
+                e('button', { className: 'secondary', 'data-action': 'clearInput', onClick: () => setInput(''), disabled: isRunning },
+                  '✏️ 输入反馈让 Writer 重写（用下方输入框）'),
+              ),
+              e('div', { style: { marginTop: '8px', fontSize: '12px', color: 'var(--muted)' } },
+                '提示：直接编辑 runs/<session_id>/writer_output.md 也可，Step 2 会自动用编辑后的版本'),
+              activeSid && e('div', { style: { marginTop: '4px' } },
+                e('span', { className: 'session-id' }, 'session_id: ' + activeSid),
+              ),
+            ),
+
+            // 错误
+            error && e('div', { className: 'error-msg' }, '❌ ' + error),
+          ),
+
+          // M13：产物 drawer（多集 tabs + 关闭按钮）
+          resultsTabs.length > 0 && resultsVisible && (() => {
+            const activeTab = resultsTabs.find(t => t.ep_id === activeTabId) || resultsTabs[0];
+            return e('div', { className: 'results' },
+              e('div', { style: { display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)' } },
+                e('div', { className: 'tabs', style: { flex: 1, borderBottom: 'none' } },
+                  resultsTabs.map(t => {
+                    const isActive = t.ep_id === activeTabId;
+                    const label = `集 ${t.ep_id}` + (t.inspiration_preview ? `: ${t.inspiration_preview}` : '');
+                    return e('div', {
+                      key: t.ep_id,
+                      'data-action': `tab-${t.ep_id}`,
+                      className: 'tab' + (isActive ? ' active' : ''),
+                      onClick: () => setActiveTabId(t.ep_id),
+                      title: label,
+                    }, label);
+                  }),
+                ),
+                e('button', {
+                  className: 'secondary',
+                  'data-action': 'closeDrawer',
+                  onClick: () => setResultsVisible(false),
+                  style: { marginRight: 8, padding: '6px 12px', fontSize: 14 },
+                  title: '关闭画框（数据保留）',
+                }, '×'),
+              ),
+              activeTab && e('div', {
+                className: 'tab-content md-body',
+                dangerouslySetInnerHTML: {
+                  __html: activeTab.content
+                    ? cachedMarkdown(activeTab.content)
+                    : '<p style="color:var(--muted)">(无 prompt)</p>',
+                },
+              }),
+              e('div', { style: { padding: '8px 24px 16px', fontSize: 11, color: 'var(--muted)', maxWidth: 900, margin: '0 auto', width: '100%' } },
+                'session_id: ' + activeSid,
+              ),
+            );
+          })(),
+
+          // M13：关闭后显示"查看脚本"按钮
+          resultsTabs.length > 0 && !resultsVisible && e('div', {
+            style: { padding: '6px 24px', borderTop: '1px solid var(--border)', background: 'var(--panel)', fontSize: 12 },
+          },
+            e('button', {
+              className: 'secondary',
+              'data-action': 'openDrawer',
+              onClick: () => setResultsVisible(true),
+              style: { fontSize: 12, padding: '6px 12px' },
+            }, `📜 查看脚本（${resultsTabs.length} 集）`),
+          ),
+
+          // 输入区（M13：4 状态分支按钮）
+          e('div', { className: 'input-area' },
+            e('div', { className: 'input-row' },
+              e('textarea', {
+                value: input,
+                onChange: (ev) => setInput(ev.target.value),
+                onKeyDown: handleKeyDown,
+                // M13：4 状态 placeholder
+                placeholder: state === 'idle'
+                  ? (isViewing
+                    ? '续接此 session：写新灵感（按 Ctrl+Enter 提交）'
+                    : '新剧本灵感（自然语言，如：15秒赛博朋克女黑客短片 4K）')
+                  : state === 'after_writer'
+                    ? (isViewing
+                      ? '重写本集的反馈（按 Ctrl+Enter 提交）'
+                      : '重写本集的反馈（让 Writer 重写）')
+                    : state === 'complete'
+                      ? '下一集灵感（人物沿用，剧情推进，按 Ctrl+Enter）'
+                      : '跑中...',
+                disabled: isRunning || state === 'running_step1' || state === 'running_step2' || state === 'running_rewrite',
+              }),
+              // M13：4 状态按钮
+              state === 'idle' && e('button', {
+                'data-action': 'start',
+                onClick: handleStart,
+                disabled: isRunning || !input.trim(),
+              }, isViewing ? '✏️ 写续集（旧 fork）' : '🚀 启动'),
+              state === 'after_writer' && e('button', {
+                'data-action': 'rewrite',
+                onClick: handleRewrite,
+                disabled: isRunning || !input.trim(),
+              }, '✏️ 重写本集'),
+              state === 'after_writer' && e('button', {
+                className: 'success',
+                'data-action': 'continue',
+                onClick: handleContinue,
+                disabled: isRunning,
+              }, isViewing ? '✅ 接着跑 Step 2' : '✅ 跑 Step 2'),
+              state === 'complete' && e('button', {
+                className: 'success',
+                'data-action': 'start',
+                onClick: handleStart,
+                disabled: isRunning || !input.trim(),
+              }, '➡️ 写下一集'),
+            ),
+            e('div', { style: { maxWidth: 900, margin: '8px auto 0', fontSize: 11, color: 'var(--muted)' } },
+              'Ctrl+Enter 提交 | 当前状态：' + sl.text +
+              (state === 'complete' && activeSid ? '（可写下一集同 session）' :
+                isViewing ? '（查看模式）' : ''),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 启动错误显示：如果 React 渲染失败，把错误显示在页面上
+    function showFatal(msg) {
+      const el = document.getElementById('root');
+      if (!el) return;
+      el.innerHTML = '<div style="background:#2a1a1a;border:1px solid #ff6b6b;color:#ff8888;padding:20px;margin:20px;border-radius:8px;font-family:ui-monospace,monospace;font-size:13px;white-space:pre-wrap;">' +
+        '⚠️ 启动失败\n\n' + String(msg) + '</div>';
+    }
+
+    window.addEventListener('error', (ev) => {
+      console.error('[window.error]', ev.message, '@', ev.filename, ':', ev.lineno);
+    });
+    window.addEventListener('unhandledrejection', (ev) => {
+      console.error('[unhandledrejection]', ev.reason);
+    });
+
+    try {
+      if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+        showFatal('React / ReactDOM 未加载。\n请检查 /static/vendor/react.production.min.js 是否能访问（Network 面板）。');
+      } else if (typeof marked === 'undefined') {
+        showFatal('marked 未加载。\n请检查 /static/vendor/marked.min.js 是否能访问（Network 面板）。');
+      } else {
+        const rootEl = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootEl);
+        // 加全局错误捕获（React 渲染错误会冒泡到这里）
+        root.render(e(App));
+        console.log('[boot] React mounted OK');
+        // React 渲染完后删掉 boot banner
+        if (window.__bootEl && window.__bootEl.parentNode) {
+          window.__bootEl.parentNode.removeChild(window.__bootEl);
+        }
+      }
+    } catch (err) {
+      showFatal((err && err.message || err) + '\n\n' + (err && err.stack || ''));
+    }
+  </script>
+</body>
+</html>

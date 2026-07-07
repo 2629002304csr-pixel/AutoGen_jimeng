@@ -1,0 +1,14 @@
+# AutoGen 即梦工作流依赖（Python 3.10+）
+# 生成依据：pyproject.toml dependencies 段 + M7 新增 Web 依赖
+
+# === AutoGen 核心 ===
+autogen-agentchat>=0.7.5
+autogen-ext[openai]>=0.7.5
+
+# === 配置 / 环境变量 ===
+python-dotenv>=1.0.0
+
+# === M7 Web UI（FastAPI + WebSocket）===
+fastapi>=0.110
+uvicorn[standard]>=0.27
+websockets>=12.0

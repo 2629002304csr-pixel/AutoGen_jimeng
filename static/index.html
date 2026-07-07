@@ -1,0 +1,2009 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoGen 即梦工作流</title>
+  <style>
+    :root {
+      --bg: #0f0f17;
+      --panel: #1a1a26;
+      --border: #2a2a3a;
+      --text: #e6e6f0;
+      --muted: #8a8aa0;
+      --accent: #7c5cff;
+      --user: #58a6ff;
+      --error: #ff6b6b;
+
+      --host: #58a6ff;
+      --writer: #b07cff;
+      --storyboard: #4ec9b0;
+      --dp: #d4a017;
+      --director: #ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+    }
+    #root {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: row;
+    }
+
+    /* 侧栏（M12） */
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .sidebar-header button {
+      width: 100%;
+      padding: 8px;
+      font-size: 13px;
+    }
+    .sidebar-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+    .sidebar-item {
+      padding: 10px 14px;
+      border-left: 3px solid transparent;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .sidebar-item:hover { background: rgba(255,255,255,0.03); }
+    .sidebar-item.active {
+      border-left-color: var(--accent);
+      background: rgba(124, 92, 255, 0.08);
+    }
+    .sidebar-item .title {
+      font-size: 13px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+    .sidebar-item .meta {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .sidebar-item .badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      background: var(--border);
+      color: var(--muted);
+    }
+    .sidebar-item .badge.complete { background: var(--storyboard); color: black; }
+    .sidebar-item .badge.after_writer { background: var(--dp); color: black; }
+    .sidebar-item .badge.running { background: var(--accent); color: white; }
+    .sidebar-item.no-fact { opacity: 0.5; }
+    .sidebar-item-delete {
+      opacity: 0;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+      font-size: 18px;
+      padding: 0 8px;
+      border-radius: 4px;
+      transition: opacity 0.15s, background 0.15s, color 0.15s;
+      float: right;
+      line-height: 1;
+      color: var(--muted);
+      font-weight: 300;
+    }
+    .sidebar-item:hover .sidebar-item-delete { opacity: 1; }
+    .sidebar-item.active .sidebar-item-delete { opacity: 1; }
+    .sidebar-item-delete:hover {
+      opacity: 1;
+      background: rgba(244, 67, 54, 0.18);
+      color: #f5b6b6;
+    }
+    .sidebar-disabled {
+      pointer-events: none;
+      opacity: 0.4;
+    }
+    .sidebar-empty {
+      padding: 20px 14px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* M16：模型配置 modal */
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      width: min(520px, 92vw);
+      max-height: 90vh;
+      overflow-y: auto;
+      color: var(--text);
+    }
+    .modal h2 { margin: 0 0 6px; font-size: 16px; }
+    .modal .modal-sub {
+      font-size: 12px; color: var(--muted); margin-bottom: 16px;
+    }
+    .modal label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin: 12px 0 4px;
+    }
+    .modal input, .modal select {
+      width: 100%;
+      box-sizing: border-box;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .modal input:focus, .modal select:focus {
+      outline: none; border-color: var(--accent);
+    }
+    .modal .field-row {
+      display: flex; gap: 6px; align-items: center;
+    }
+    .modal .field-row input { flex: 1; }
+    .modal .field-row button {
+      padding: 6px 10px; font-size: 12px; flex-shrink: 0;
+    }
+    .modal .current-key {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+      font-family: monospace;
+    }
+    .modal details {
+      margin-top: 14px;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+    }
+    .modal details summary {
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--muted);
+      user-select: none;
+    }
+    .modal .row-2 {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
+    .modal .actions {
+      display: flex; gap: 8px; margin-top: 20px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+    .modal .actions button { font-size: 13px; padding: 8px 14px; }
+    .modal .test-result {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      word-break: break-all;
+    }
+    .modal .test-result.ok {
+      background: rgba(76, 175, 80, 0.15);
+      border: 1px solid rgba(76, 175, 80, 0.4);
+      color: #b6f0bd;
+    }
+    .modal .test-result.err {
+      background: rgba(244, 67, 54, 0.15);
+      border: 1px solid rgba(244, 67, 54, 0.4);
+      color: #f5b6b6;
+    }
+    .modal .preset-info {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+    /* 删除确认 modal */
+    .modal h3 { margin: 0 0 10px; font-size: 15px; }
+    .modal p { margin: 0 0 16px; font-size: 13px; line-height: 1.5; }
+    .modal code {
+      font-family: monospace;
+      background: var(--border);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    .modal-actions button { font-size: 13px; padding: 6px 16px; }
+    .btn-secondary {
+      background: var(--border);
+      color: var(--text);
+      border: 0;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+    .btn-danger {
+      background: #d32f2f;
+      color: white;
+      border: 0;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn-danger:hover { background: #b71c1c; }
+    header {
+      flex-shrink: 0;
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    header h1 { margin: 0; font-size: 16px; font-weight: 600; }
+    .status {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      background: var(--border);
+      color: var(--muted);
+    }
+    .status.running { background: var(--accent); color: white; }
+    .status.paused { background: var(--dp); color: black; }
+    .status.done { background: var(--storyboard); color: black; }
+    .status.error { background: var(--error); color: white; }
+
+    main {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 群聊区 */
+    .chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+      scroll-behavior: smooth;
+    }
+    .msg {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      align-items: flex-start;
+    }
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: black;
+      flex-shrink: 0;
+    }
+    .avatar.host { background: var(--host); }
+    .avatar.writer { background: var(--writer); color: white; }
+    .avatar.storyboard { background: var(--storyboard); }
+    .avatar.dp { background: var(--dp); }
+    .avatar.director { background: var(--director); color: white; }
+    .avatar.user { background: var(--user); color: white; }
+    .avatar.system { background: var(--muted); color: white; }
+
+    .bubble {
+      flex: 1;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      line-height: 1.6;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    /* 原文模式（流式中、用户消息）保留换行 */
+    .bubble.raw {
+      white-space: pre-wrap;
+    }
+    /* M20: 推理模型 thinking 独白 → 折叠成"💭 思考中..." */
+    .bubble.thinking {
+      background: #fafafa;
+      border: 1px dashed var(--border);
+      opacity: 0.7;
+      padding: 6px 12px;
+    }
+    .bubble.thinking .role-name {
+      color: var(--muted);
+      font-style: italic;
+    }
+    .bubble.thinking .thinking-preview {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      margin-top: 2px;
+    }
+    .thinking-msg .avatar { opacity: 0.5; }
+    /* MD 渲染模式：让 marked 输出的 <p>/<h2> 等自己控制换行 */
+    .bubble.md-rendered {
+      white-space: normal;
+    }
+    .bubble.md-rendered h1 { font-size: 18px; margin: 0 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+    .bubble.md-rendered h2 { font-size: 15px; margin: 14px 0 6px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 2px; }
+    .bubble.md-rendered h3 { font-size: 14px; margin: 10px 0 4px; color: var(--writer); }
+    .bubble.md-rendered h4 { font-size: 13px; margin: 8px 0 4px; color: var(--dp); }
+    .bubble.md-rendered p { margin: 6px 0; }
+    .bubble.md-rendered ul, .bubble.md-rendered ol { padding-left: 22px; margin: 6px 0; }
+    .bubble.md-rendered li { margin: 2px 0; }
+    .bubble.md-rendered blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 4px 10px;
+      margin: 6px 0;
+      color: var(--muted);
+      background: rgba(124, 92, 255, 0.05);
+    }
+    .bubble.md-rendered code {
+      font-family: ui-monospace, monospace;
+      background: var(--bg);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .bubble.md-rendered pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    .bubble.md-rendered hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+    .bubble.md-rendered strong { color: var(--text); }
+    .bubble.md-rendered em { color: var(--muted); font-style: italic; }
+    .bubble.md-rendered table {
+      border-collapse: collapse;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+    .bubble.md-rendered th, .bubble.md-rendered td {
+      border: 1px solid var(--border);
+      padding: 4px 8px;
+    }
+    .bubble.md-rendered a { color: var(--accent); text-decoration: underline; }
+    .bubble.streaming::after {
+      content: "▍";
+      animation: blink 1s infinite;
+      color: var(--accent);
+    }
+    @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+    .bubble .role-name {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* 暂停面板 */
+    .pause-panel {
+      background: var(--panel);
+      border: 1px solid var(--dp);
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    .pause-panel h3 { margin: 0 0 12px 0; font-size: 14px; color: var(--dp); }
+    .pause-panel .writer-preview {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: ui-monospace, "Cascadia Code", monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      margin-bottom: 12px;
+    }
+    .pause-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* 输入区 */
+    .input-area {
+      flex-shrink: 0;
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      background: var(--panel);
+    }
+    .input-row {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      gap: 8px;
+    }
+    textarea {
+      flex: 1;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 14px;
+      resize: vertical;
+      min-height: 44px;
+      max-height: 160px;
+    }
+    textarea:focus { outline: none; border-color: var(--accent); }
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover:not(:disabled) { opacity: 0.85; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.secondary {
+      background: var(--border);
+      color: var(--text);
+    }
+    button.danger { background: var(--error); }
+    button.success { background: var(--storyboard); color: black; }
+
+    /* 内部信息折叠 */
+    .internal-note {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 4px 12px;
+      text-align: center;
+      font-style: italic;
+    }
+    .toggle-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 4px 24px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .toggle-row label {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    /* 产物 tab */
+    .results {
+      border-top: 1px solid var(--border);
+      background: var(--panel);
+      max-height: 50vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab {
+      padding: 10px 18px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+    }
+    .tab.active {
+      color: var(--text);
+      border-bottom-color: var(--accent);
+    }
+    .tab-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 24px;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    /* MD 渲染样式（产物 tab 用） */
+    .md-body h1 { font-size: 22px; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .md-body h2 { font-size: 17px; margin: 20px 0 10px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+    .md-body h3 { font-size: 15px; margin: 16px 0 8px; color: var(--writer); }
+    .md-body h4 { font-size: 14px; margin: 12px 0 6px; color: var(--dp); }
+    .md-body p { margin: 8px 0; }
+    .md-body ul, .md-body ol { padding-left: 24px; margin: 8px 0; }
+    .md-body li { margin: 4px 0; }
+    .md-body blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 4px 12px;
+      margin: 8px 0;
+      color: var(--muted);
+      background: rgba(124, 92, 255, 0.05);
+    }
+    .md-body code {
+      font-family: ui-monospace, monospace;
+      background: var(--bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+    }
+    .md-body pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      overflow-x: auto;
+    }
+    .md-body pre code { background: none; border: none; padding: 0; }
+    .md-body hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+    .md-body strong { color: var(--text); }
+    .md-body em { color: var(--muted); }
+
+    /* 错误 */
+    .error-msg {
+      background: var(--error);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin: 8px 0;
+    }
+
+    .session-id {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: ui-monospace, monospace;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="build-tag" style="position:fixed;bottom:8px;right:8px;background:#7c5cff;color:white;padding:4px 10px;border-radius:12px;font:11px ui-monospace,monospace;z-index:10000;pointer-events:none;">
+    build: 2026-07-03-v14
+  </div>
+  <div id="boot" style="position:fixed;top:0;left:0;right:0;background:#222;color:#fff;padding:8px 16px;font:13px ui-monospace,monospace;z-index:9999;text-align:center;">
+    ⏳ 加载中…（build 2026-07-03-v14） clicks: <span id="click-count">0</span>
+  </div>
+  <script>
+    // 越早越好：把 boot 元素 id 记下，React 挂载成功后删掉
+    window.__bootEl = document.getElementById('boot');
+    // 全局 click 计数器：任何点击都会触发（绕过 React），帮助诊断
+    window.__clickCount = 0;
+    const clickCountEl = document.getElementById('click-count');
+    // 兜底 click 委托：如果 React 18 UMD 事件委托在某些浏览器坏掉，
+    // 这里用原生 addEventListener 接管所有 [data-action] 元素
+    document.addEventListener('click', (ev) => {
+      window.__clickCount++;
+      if (clickCountEl) clickCountEl.textContent = window.__clickCount;
+      const t = ev.target;
+      const tag = t && t.tagName;
+      const txt = (t && t.textContent || '').trim().slice(0, 20);
+      console.log('[global-click]', window.__clickCount, tag, '"' + txt + '"');
+
+      const H = window.__appHandlers;
+      if (!H) return;
+
+      // 兜底2（先于兜底1）：所有 [data-action] 元素（含 tab-N / deleteSession / ...）
+      // 必须先检查，因为 🗑️ 删除按钮嵌在 .sidebar-item 里——若先走兜底1
+      // 会误把删除当 selectSession。React onClick 的 stopPropagation 救不回来：
+      // 这个监听器用了 capture 阶段（见末尾 true 参数），跑在 React 之前。
+      const btn = t && t.closest && t.closest('[data-action]');
+      if (btn && !btn.disabled) {
+        const action = btn.getAttribute('data-action');
+        console.log('[fallback] button click, action=' + action);
+        // M13：tab-N 走 setTab handler
+        if (action && action.startsWith('tab-')) {
+          const epId = parseInt(action.slice(4), 10);
+          if (H.setTab && !isNaN(epId)) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            H.setTab(epId);
+            return;
+          }
+        }
+        const handler = H[action];
+        if (handler) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          // data-action 元素若有 data-sid / data-title，一并传给 handler
+          // （兜底 handler 跑在捕获阶段，没闭包可用，必须靠 DOM 属性取上下文）
+          const payload = (btn.dataset && btn.dataset.sid)
+            ? { session_id: btn.dataset.sid, title: btn.dataset.title || btn.dataset.sid }
+            : undefined;
+          handler(payload);
+          return;
+        }
+        // 命中 [data-action] 但 H 没注册 → 用户明确标了 action，绝不能再
+        // fallthrough 到 sidebar-item 选择；本 click 被"消费"。
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+
+      // 兜底1：侧栏 session 项（带 data-sid）—— click 命中空白区（不含 data-action）才走
+      const item = t && t.closest && t.closest('.sidebar-item[data-sid]');
+      if (item) {
+        const sid = item.getAttribute('data-sid');
+        console.log('[fallback] sidebar item click, sid=' + sid);
+        if (H.selectSession) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          H.selectSession(sid);
+          return;
+        }
+      }
+    }, true);
+  </script>
+
+  <script src="/static/vendor/react.production.min.js?v=14"></script>
+  <script src="/static/vendor/react-dom.production.min.js?v=14"></script>
+  <script src="/static/vendor/marked.min.js?v=14"></script>
+  <script>
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
+    const e = React.createElement;
+
+    // MD 渲染缓存：避免每个 token 重跑 marked（流式时几十 token/s 的话会卡）
+    const mdCache = new Map();
+    function cachedMarkdown(text) {
+      if (!text) return '';
+      let hit = mdCache.get(text);
+      if (hit !== undefined) return hit;
+      // 缓存满时清空（流式产生的中间状态不会重复出现）
+      if (mdCache.size > 200) mdCache.clear();
+      hit = safeMarkdown(text);
+      mdCache.set(text, hit);
+      return hit;
+    }
+
+    // 安全的 MD 渲染：异常时降级为原文（保留换行）
+    function safeMarkdown(text) {
+      if (!text) return '';
+      try {
+        // marked 5+ 同步返回 string；9+ 仍然是同步的
+        const out = marked.parse(text);
+        if (out && typeof out === 'string') return out;
+        if (out && typeof out.then === 'function') {
+          return '<pre style="white-space:pre-wrap;margin:0;font-family:inherit;">' + escapeHtml(text) + '</pre>';
+        }
+        return '<pre style="white-space:pre-wrap;margin:0;font-family:inherit;">' + escapeHtml(text) + '</pre>';
+      } catch (err) {
+        console.warn('[marked] parse failed:', err && err.message);
+        return '<pre style="white-space:pre-wrap;margin:0;font-family:inherit;">' + escapeHtml(text) + '</pre>';
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // 角色配色
+    const ROLE_META = {
+      Host:       { color: 'host',       short: '主持', label: 'Host 主持人' },
+      Writer:     { color: 'writer',     short: '作家', label: 'Writer 作家' },
+      Storyboard: { color: 'storyboard', short: '分镜', label: 'Storyboard 分镜师' },
+      DP:         { color: 'dp',         short: '摄影', label: 'DP 摄影指导' },
+      Director:   { color: 'director',   short: '导演', label: 'Director 导演' },
+      user:       { color: 'user',       short: '我',  label: '你（用户）' },
+      system:     { color: 'system',     short: 'sys', label: '系统' },
+    };
+
+    // ============== M25+ 用户配置：localStorage 存储 ==============
+    // 原因：API key 不进服务端（隐私 + 不背泄漏责任）
+    // localStorage 是 per-browser 的 —— 每个用户浏览器里存自己 key，互不干扰
+    const LS_KEY = 'jimeng_user_config';
+
+    function readUserConfigLS() {
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch (e) {
+        console.warn('[config] localStorage read failed:', e);
+        return null;
+      }
+    }
+
+    function writeUserConfigLS(cfg) {
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify(cfg));
+        return true;
+      } catch (e) {
+        console.warn('[config] localStorage write failed:', e);
+        return false;
+      }
+    }
+
+    function maskApiKey(key) {
+      if (!key) return '';
+      if (key.length <= 4) return '***';
+      return '***' + key.slice(-4);
+    }
+
+    // 给 WS 消息体用的 model_config（明文 api_key，仅 per-browser，不进网络日志/服务器文件）
+    function getActiveModelConfig() {
+      const cfg = readUserConfigLS();
+      if (!cfg || !cfg.api_key) return null;
+      return {
+        provider: cfg.provider || 'deepseek',
+        base_url: cfg.base_url || '',
+        api_key: cfg.api_key,
+        main_model: cfg.main_model || '',
+      };
+    }
+
+    function avatarClass(role) {
+      const meta = ROLE_META[role] || ROLE_META.system;
+      return "avatar " + meta.color;
+    }
+
+    function statusLabel(state) {
+      const map = {
+        idle:           { text: '空闲',    cls: '' },
+        running_step1:  { text: 'Step 1 跑中（Host + Writer）', cls: 'running' },
+        after_writer:   { text: 'Step 1 完成，等你 review', cls: 'paused' },
+        running_rewrite:{ text: 'Writer 重写中', cls: 'running' },
+        running_step2:  { text: 'Step 2 跑中（Storyboard → DP → Director）', cls: 'running' },
+        complete:       { text: '完成',     cls: 'done' },
+        error:          { text: '出错了',   cls: 'error' },
+      };
+      return map[state] || { text: state, cls: '' };
+    }
+
+    function App() {
+      console.log('[App] render start');
+      const [messages, setMessages] = useState([]);     // {role, content, isFinal}
+      const [state, setState] = useState('idle');
+      const [sessionId, setSessionId] = useState(null);     // 当前 WebSocket 正在跑的 session_id
+      const [activeSid, setActiveSid] = useState(null);     // M12：聊天区当前显示的 session_id
+      const [sessions, setSessions] = useState([]);         // M12：侧栏列表
+      const [loadingSession, setLoadingSession] = useState(false);
+      const [writerOutput, setWriterOutput] = useState('');
+      const [input, setInput] = useState('');
+      // M13: tabs 化多集展示
+      const [resultsTabs, setResultsTabs] = useState([]);   // [{ep_id, title, inspiration_preview, content, created_at}, ...]
+      const [activeTabId, setActiveTabId] = useState(null); // 当前选中的 ep_id
+      const [resultsVisible, setResultsVisible] = useState(true);  // 画框显示/隐藏
+      const [error, setError] = useState(null);
+      const wsRef = useRef(null);
+      const chatRef = useRef(null);
+
+      // M16：模型配置 modal 状态
+      const [configModalOpen, setConfigModalOpen] = useState(false);
+      const [configForm, setConfigForm] = useState({
+        provider: 'deepseek', base_url: '', light_model: '', main_model: '',
+        api_key: '', timeout: 180, max_retries: 2,
+      });
+      // 删除 session 确认 modal
+      const [deleteTarget, setDeleteTarget] = useState(null);  // {session_id, title, ...} | null
+      const [currentConfig, setCurrentConfig] = useState(null);  // localStorage 拿到的快照（masked）
+      const [showApiKey, setShowApiKey] = useState(false);
+      const [savingConfig, setSavingConfig] = useState(false);
+      const [testingConfig, setTestingConfig] = useState(false);
+      const [configTestResult, setConfigTestResult] = useState(null);  // {ok, sample/error}
+      // 分发改造（M25+）：API key 只存浏览器 localStorage，不进服务端
+      // hasConfig 派生自 localStorage；保存后变 true → 解锁输入框 + 启动按钮
+      const [hasConfig, setHasConfig] = useState(!!readUserConfigLS());
+
+      // 派生：当前 activeSid 对应的 session 信息
+      const activeSession = sessions.find(s => s.session_id === activeSid) || null;
+      // viewing 态：在看老 session（不是刚发 start 跑出来的新 session）
+      const isViewing = !!(activeSid && activeSid !== sessionId);
+      // 跑中时禁用侧栏
+      const isRunning = state === 'running_step1' || state === 'running_step2' || state === 'running_rewrite';
+      // viewing 态且有 fact_sheet → 可以 fork
+      const canForkFromViewing = isViewing && !!activeSession && !!activeSession.has_fact_sheet;
+
+      // M22 双闸（前端闸严化）：Writer 必须输出含 ## 故事梗概 等结构化段才算"review 完成"
+      // —— 仅 writerOutput.trim() 非空会让 deepseek-reasoner 的 preamble（"好的，我想想..."）蒙混过关
+      const hasValidWriterOutput = useMemo(() => {
+        if (!writerOutput || !writerOutput.trim()) return false;
+        // 至少含 Writer 必备段：故事梗概 / 场景列表 / 人物 / 场景设定 任一
+        return (
+          writerOutput.includes('## 故事梗概') ||
+          writerOutput.includes('## 场景列表') ||
+          writerOutput.includes('## 人物')
+        );
+      }, [writerOutput]);
+
+      // ============== 副作用 ==============
+
+      // 自动滚到底部（仅当用户已经在底部时）
+      useEffect(() => {
+        if (!chatRef.current) return;
+        const el = chatRef.current;
+        const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+        if (isAtBottom) {
+          el.scrollTop = el.scrollHeight;
+        }
+      }, [messages]);
+
+      // ============== 业务函数（先声明所有函数） ==============
+
+      const loadSessions = useCallback(async () => {
+        try {
+          const resp = await fetch('/api/sessions');
+          if (!resp.ok) throw new Error('fetch sessions failed');
+          const data = await resp.json();
+          setSessions(data || []);
+        } catch (err) {
+          console.error('[loadSessions] failed:', err);
+        }
+      }, []);
+
+      // M16：模型配置 modal 处理函数
+      const PRESETS = {
+        deepseek: {
+          base_url: 'https://api.deepseek.com/v1',
+          light_model: 'deepseek-chat',
+          main_model: 'deepseek-chat',
+          desc: '国内便宜（V3 输入 1 元/百万 token），64K 上下文，支持 function calling',
+        },
+        qwen: {
+          base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+          light_model: 'qwen-turbo',
+          main_model: 'qwen-plus',
+          desc: '阿里 DashScope，qwen-plus 性价比最好，支持 JSON mode',
+        },
+        openai: {
+          base_url: 'https://api.openai.com/v1',
+          light_model: 'gpt-4o-mini',
+          main_model: 'gpt-4.1',
+          desc: '官方端点；海外用户或需多模态时选',
+        },
+        custom: { base_url: '', light_model: '', main_model: '', desc: '任意 OpenAI 兼容端点（自部署 / 第三方代理）' },
+      };
+
+      const loadCurrentConfig = useCallback(() => {
+        // M25+：从 localStorage 读（不再 fetch 服务端 _user_config.json）
+        const stored = readUserConfigLS();
+        if (stored) {
+          // masked 版本用于 UI 显示
+          setCurrentConfig({ ...stored, api_key: maskApiKey(stored.api_key) });
+        } else {
+          setCurrentConfig(null);
+        }
+      }, []);
+
+      const openConfigModal = useCallback(() => {
+        setConfigModalOpen(true);
+        setConfigTestResult(null);
+        loadCurrentConfig();
+        // 用 localStorage 快照初始化表单（api_key 留空以便显式覆盖；masked 不回填）
+        const stored = readUserConfigLS();
+        setConfigForm(prev => ({
+          ...prev,
+          provider: stored?.provider || 'deepseek',
+          base_url: stored?.base_url || '',
+          light_model: stored?.light_model || '',
+          main_model: stored?.main_model || '',
+          api_key: '',  // 永远留空 —— 不显示旧 key
+          timeout: stored?.timeout || 180,
+          max_retries: stored?.max_retries || 2,
+        }));
+      }, [loadCurrentConfig]);
+
+      const closeConfigModal = useCallback(() => {
+        setConfigModalOpen(false);
+        setConfigTestResult(null);
+      }, []);
+
+      const onProviderChange = useCallback((newProvider) => {
+        // 切预设时把对应 base_url/model 提示写到表单（用户可继续覆盖）
+        const preset = PRESETS[newProvider] || PRESETS.deepseek;
+        setConfigForm(prev => ({
+          ...prev,
+          provider: newProvider,
+          base_url: preset.base_url,
+          light_model: preset.light_model,
+          main_model: preset.main_model,
+        }));
+      }, []);
+
+      const saveConfig = useCallback(() => {
+        setSavingConfig(true);
+        setConfigTestResult(null);
+        try {
+          const stored = readUserConfigLS() || {};
+          const preset = PRESETS[configForm.provider] || PRESETS.deepseek;
+          // api_key 留空 → 保留旧的（用户改 base_url 不必重输 key）
+          const newKey = configForm.api_key.trim() || stored.api_key || '';
+          if (!newKey) {
+            throw new Error('API key 不能为空（首次配置请填入）');
+          }
+          const newCfg = {
+            provider: configForm.provider,
+            base_url: (configForm.base_url || preset.base_url || '').trim(),
+            light_model: (configForm.light_model || preset.light_model || '').trim(),
+            main_model: (configForm.main_model || preset.main_model || '').trim(),
+            api_key: newKey,  // 明文存 localStorage（per-browser，不进网络）
+            api_key_set: true,
+            timeout: Number(configForm.timeout) || 180,
+            max_retries: Number(configForm.max_retries) || 2,
+          };
+          const ok = writeUserConfigLS(newCfg);
+          if (!ok) throw new Error('localStorage 写入失败（可能是浏览器隐私模式）');
+          // 更新 currentConfig（masked）
+          setCurrentConfig({ ...newCfg, api_key: maskApiKey(newCfg.api_key) });
+          // 清空 key 输入（避免二次保存时把上次的值当新 key 提交）
+          setConfigForm(prev => ({ ...prev, api_key: '' }));
+          // 解锁输入
+          setHasConfig(true);
+          alert(`✓ 已保存：${newCfg.provider} / ${newCfg.main_model}\n（key 存到浏览器 localStorage，不进服务器）`);
+        } catch (err) {
+          alert(`✗ 保存失败：${err.message}`);
+        } finally {
+          setSavingConfig(false);
+        }
+      }, [configForm]);
+
+      const testConfig = useCallback(async () => {
+        setTestingConfig(true);
+        setConfigTestResult(null);
+        try {
+          // M25+：test 也要发完整 config（前端从 form + localStorage 合并）
+          const stored = readUserConfigLS() || {};
+          const preset = PRESETS[configForm.provider] || PRESETS.deepseek;
+          const api_key = configForm.api_key.trim() || stored.api_key || '';
+          if (!api_key) {
+            setConfigTestResult({ ok: false, error: '未填 API key（先在上方填入再测）' });
+            return;
+          }
+          const resp = await fetch('/api/config/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              provider: configForm.provider,
+              base_url: configForm.base_url || preset.base_url || '',
+              light_model: configForm.light_model || preset.light_model || '',
+              main_model: configForm.main_model || preset.main_model || '',
+              api_key: api_key,
+              timeout: Number(configForm.timeout) || 180,
+              max_retries: Number(configForm.max_retries) || 2,
+            }),
+          });
+          const data = await resp.json();
+          setConfigTestResult(data.ok
+            ? { ok: true, sample: data.sample || '(无返回)' }
+            : { ok: false, error: data.error || '未知错误' });
+        } catch (err) {
+          // 详细错误：HTTP 状态 + body
+          setConfigTestResult({ ok: false, error: `网络错误：${err.message}（请看 DevTools → Network）` });
+        } finally {
+          setTestingConfig(false);
+        }
+      }, [configForm]);
+
+      // M12: "+ 新会话" → 清空当前，回到 idle（M13：tabs 也清空）
+      const handleNewSession = useCallback(() => {
+        if (isRunning) return;
+        setMessages([]);
+        setWriterOutput('');
+        setResultsTabs([]);
+        setActiveTabId(null);
+        setResultsVisible(true);
+        setError(null);
+        setActiveSid(null);
+        setState('idle');
+      }, [isRunning]);
+
+      // 删除 session：调 DELETE /api/v2/sessions/{sid}，成功后从列表移除
+      // 如果删的是当前 active session，同步清空 chat 区（M13：tabs 也清空）
+      const handleConfirmDelete = useCallback(async () => {
+        if (!deleteTarget) return;
+        const sid = deleteTarget.session_id;
+        try {
+          const res = await fetch(`/api/v2/sessions/${encodeURIComponent(sid)}`, {
+            method: 'DELETE',
+          });
+          if (res.ok) {
+            setSessions((prev) => prev.filter((s) => s.session_id !== sid));
+            if (sid === activeSid) {
+              setActiveSid(null);
+              setMessages([]);
+              setWriterOutput('');
+              setResultsTabs([]);
+              setActiveTabId(null);
+              setError(null);
+              setState('idle');
+            }
+          } else {
+            const err = await res.json().catch(() => ({}));
+            setError(`删除失败 (${res.status}): ${err.detail || res.statusText}`);
+          }
+        } catch (e) {
+          setError(`删除请求异常: ${e.message}`);
+        } finally {
+          setDeleteTarget(null);
+        }
+      }, [deleteTarget, activeSid]);
+
+      // 复制当前 active tab 的脚本到剪贴板
+      // - 用 ref 跟踪当前激活的 tab 内容（兜底 handler 跑在捕获阶段，没闭包可用）
+      // - 成功 → setCopiedEpId(ep) → 按钮短暂显示"已复制 ✓"再恢复
+      const activeTabRef = useRef(null);
+      const [copiedEpId, setCopiedEpId] = useState(null);
+      const handleCopyScript = useCallback(async () => {
+        const tab = activeTabRef.current;
+        if (!tab || !tab.content) return;
+        try {
+          await navigator.clipboard.writeText(tab.content);
+          setCopiedEpId(tab.ep_id);
+          setTimeout(() => {
+            setCopiedEpId((cur) => (cur === tab.ep_id ? null : cur));
+          }, 1500);
+        } catch (e) {
+          // 旧浏览器或非 secure context → fallback：用 textarea + execCommand
+          const ta = document.createElement('textarea');
+          ta.value = tab.content;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try {
+            document.execCommand('copy');
+            setCopiedEpId(tab.ep_id);
+            setTimeout(() => {
+              setCopiedEpId((cur) => (cur === tab.ep_id ? null : cur));
+            }, 1500);
+          } catch (e2) {
+            setError(`复制失败: ${e2.message || e.message}`);
+          } finally {
+            document.body.removeChild(ta);
+          }
+        }
+      }, []);
+
+      // M12+M13: 点侧栏 session → 拉详情 → 重载聊天区 + tabs
+      const handleSelectSession = useCallback(async (sid) => {
+        if (isRunning) return;
+        if (sid === activeSid) return;     // 点自己 no-op
+        setLoadingSession(true);
+        setError(null);
+        try {
+          const resp = await fetch(`/api/sessions/${encodeURIComponent(sid)}`);
+          if (!resp.ok) throw new Error(`session ${sid} not found`);
+          const data = await resp.json();
+          // M20: 加载时也过滤 Host / system / thinking monologue
+          // - Host / system / user-preload：内部消息
+          // - thinking monologue：推理模型的"思考过程"，用户不应看到（只显示结构化输出）
+          const rawMessages = (data.messages || []).filter(m =>
+            !isInternalMessage(m.role, m.content) &&
+            !isThinkingMonologue(m.role, m.content)
+          );
+          const filteredCount = (data.messages || []).length - rawMessages.length;
+          console.log(`[M20] session ${sid.slice(0, 8)} 加载 ${rawMessages.length} 条消息（已过滤 ${filteredCount} 条：内部 + thinking）`);
+          setMessages(rawMessages.map(m => ({
+            role: m.role,
+            content: m.content,
+            isFinal: true,
+            isThinking: false,
+          })));
+          setWriterOutput(data.writer_output || '');
+          // M13：填充 tabs 列表
+          const tabs = data.prompts || [];
+          setResultsTabs(tabs);
+          setActiveTabId(tabs.length > 0 ? tabs[tabs.length - 1].ep_id : null);
+          setResultsVisible(tabs.length > 0);
+          const step = data.current_step || 'start';
+          if (step === 'complete') {
+            setState('complete');
+          } else if (step === 'after_writer') {
+            setState('after_writer');
+          } else {
+            setState('idle');
+          }
+          setActiveSid(sid);
+        } catch (err) {
+          console.error('[handleSelectSession] failed:', err);
+          setError(`加载 session 失败: ${err.message}`);
+        } finally {
+          setLoadingSession(false);
+        }
+      }, [isRunning, activeSid]);
+
+      // ============== 过滤：内部信息不展示给用户 ==============
+      // - Host 是工具内的参数解析器，不展示
+      // - "system" role 是 validator feedback（M3.4 retry 自动注入），不展示
+      // - role="user" 但内容是 task preload（"[用户灵感]..."），不展示（避免和用户真实输入重复）
+      // - 角色真实输出 (Writer/Storyboard/DP/Director) 才展示
+      const isInternalMessage = (role, content) => {
+        if (role === 'Host') return true;
+        if (role === 'system') return true;
+        if (role === 'user' && typeof content === 'string') {
+          if (content.startsWith('[用户灵感]')) return true;     // task preload
+          if (content.includes('[系统]')) return true;            // validator feedback
+          if (content.includes('[流程说明]')) return true;
+          if (content.startsWith('[用户反馈')) return true;       // M11 rewrite
+        }
+        return false;
+      };
+
+      // ============== 去重：同 role 同内容重复时不重复加 ==============
+      // 解决 retry 时 Director 输出两次的问题
+      // - 完全相同内容 → 视为重复
+      // - 内容前缀相同（≥80 字）→ 视为重复（M7 修复：AutoGen 偶尔会让 Director 跑两次，
+      //   两次内容不会字字相同但开头会一致；保守地按 80 字前缀判重）
+      const isDuplicate = (prev, role, content) => {
+        if (!content) return false;
+        const head = content.slice(0, 80);
+        return prev.some(m => {
+          if (m.role !== role || !m.isFinal) return false;
+          if (m.content === content) return true;       // 完全相同
+          if (head.length >= 80 && m.content.length >= 80 && m.content.slice(0, 80) === head) {
+            return true;                                // 前 80 字相同
+          }
+          return false;
+        });
+      };
+
+      // ============== M20: 推理模型"自言自语"独白检测 ==============
+      // reasoning 模型（deepseek-v4-pro / qwen3-thinking）每次 LLM 调用先发一段长 prose
+      // preamble（"好的，我是分镜师，让我先仔细思考..."），后接结构化输出。
+      // 这段独白无 ## / 表格 / 代码块，对用户没信息量——折叠成"💭 思考中..."缩略条。
+      //
+      // 判定条件（同时满足）：
+      // 1. 角色非 user/Host
+      // 2. 文本 > 200 字
+      // 3. 不含结构化（## / ``` / 表格 |）
+      // 4. 含中文思考短语
+      const isThinkingMonologue = (role, content) => {
+        if (!content || role === 'user' || role === 'Host') return false;
+        if (content.length < 200) return false;
+        if (/^##|```|\n\|/m.test(content)) return false;
+        return /好的，我[是需]|让我[仔细]?思考|我需要仔细思考|我需要思考|需要仔细考虑|需要思考|思考一下|让我来|我先来|我先想/.test(content);
+      };
+
+      // handleServerMessage 在 useEffect [handleServerMessage] 里绑定给 ws.onmessage。
+      // 但 handleServerMessage 是 useCallback，依赖 loadSessions 等会变化的 state，
+      // 每次重建都会触发 ws.onmessage 重新绑定 → 不会 close ws，但每次重建的回调
+      // 都引用旧的 state（典型 React stale closure）。
+      //
+      // 修复：把处理函数放进 ref，让 ws.onmessage 始终调用最新版本，零重建。
+      const handleServerMessageRef = useRef(null);
+
+      const handleServerMessage = useCallback((msg) => {
+        const t = msg.type;
+
+        if (t === 'token') {
+          if (isInternalMessage(msg.role, msg.content)) return;
+          // M22+: 不在 token 流上判定 thinking monologue
+          // 推理模型（DeepSeek-V3 / Qwen3-thinking）的 preamble 在 backend
+          // _drive_stream 已剥（Step 2 角色）+ ```markdown fence 也已剥。
+          // token 流拿到的是原文 chunks，累积到 200 字时会被 isThinkingMonologue
+          // 误判（即使后端剥干净了，token 流仍然 raw），把整个 bubble 在流式阶段
+          // 砍掉 → 用户看到 "Writer 气泡消失 / 整个 Step 2 中段气泡消失"。
+          //
+          // 新策略：token 流只负责累加 content，让 bubble 一直在；thinking 判定
+          // 全部交给 message 事件（backend 已预处理好的 final 内容）。
+          setMessages((prev) => {
+            const lastSameRole = [...prev].reverse().find(m => m.role === msg.role);
+            if (lastSameRole && lastSameRole.isFinal) {
+              return prev;
+            }
+            const last = prev[prev.length - 1];
+            if (last && last.role === msg.role && !last.isFinal) {
+              const newContent = (last.content || '') + msg.content;
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                ...last,
+                content: newContent,
+                isThinking: false,
+              };
+              return updated;
+            } else {
+              return [...prev, {
+                role: msg.role,
+                content: msg.content,
+                isFinal: false,
+                isThinking: false,
+              }];
+            }
+          });
+        } else if (t === 'message') {
+          if (isInternalMessage(msg.role, msg.content)) return;
+          // M20: 推理模型 thinking monologue 的 final message → 不显示
+          if (isThinkingMonologue(msg.role, msg.content)) return;
+          setMessages((prev) => {
+            if (isDuplicate(prev, msg.role, msg.content)) return prev;
+            const updated = [...prev];
+            for (let i = updated.length - 1; i >= 0; i--) {
+              if (updated[i].role === msg.role && !updated[i].isFinal) {
+                // M17 修复：不要用空/短内容覆盖流式累积
+                const streamed = updated[i].content || '';
+                const finalContent = msg.content || '';
+                const newContent = finalContent.length >= streamed.length ? finalContent : streamed;
+                // M20: 累积后的 final 内容是 thinking → 整个 bubble 丢弃
+                if (isThinkingMonologue(msg.role, newContent)) {
+                  return prev.slice(0, -1);
+                }
+                updated[i] = { ...updated[i], content: newContent, isFinal: true, isThinking: false };
+                return updated;
+              }
+            }
+            // 没有匹配的流式 bubble → 收到一个 final bubble（罕见，但兜底）
+            updated.push({ role: msg.role, content: msg.content, isFinal: true, isThinking: false });
+            return updated;
+          });
+        } else if (t === 'status') {
+          setState(msg.state);
+          if (msg.session_id) {
+            setSessionId(msg.session_id);
+            setActiveSid(msg.session_id);
+          }
+          if (msg.writer_output !== undefined) setWriterOutput(msg.writer_output);
+          loadSessions();
+        } else if (t === 'result') {
+          // M13：result 追加到 tabs（多集共享一个 session）
+          const newInspiration = msg.inspiration_preview || '';
+          const newContent = msg.prompt || '';
+          setResultsTabs((prev) => {
+            // 确定 ep_id：优先用后端给的，否则为 (prev_max + 1)
+            let epId = msg.ep_id;
+            if (epId == null) {
+              const maxEp = prev.reduce((m, t) => Math.max(m, t.ep_id || 0), 0);
+              epId = maxEp + 1;
+            }
+            // 替换同 ep_id（重写时），否则追加
+            const filtered = prev.filter(t => t.ep_id !== epId);
+            const next = [...filtered, {
+              ep_id: epId,
+              title: `集 ${epId}`,
+              inspiration_preview: newInspiration,
+              content: newContent,
+              created_at: new Date().toISOString(),
+            }];
+            // 切到新 tab
+            setActiveTabId(epId);
+            return next;
+          });
+          setResultsVisible(true);
+          setState('complete');
+          if (msg.session_id) {
+            setSessionId(msg.session_id);
+            setActiveSid(msg.session_id);
+          }
+          loadSessions();
+        } else if (t === 'error') {
+          setError(msg.message);
+          setState('error');
+        }
+      }, [loadSessions]);
+
+      // 把 handleServerMessage 放进 ref，ws.onmessage 调用 ref.current
+      // 这样 handleServerMessage 函数体重建不会触发 ws 重连
+      handleServerMessageRef.current = handleServerMessage;
+
+      const send = useCallback((payload) => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          setError('WebSocket 未连接（请检查后端是否启动）');
+          return;
+        }
+        // M25+：自动从 localStorage 注入 model_config
+        // 服务端 _resolve_model_config 优先用 body，body 里有 model_config 就走它
+        const model_config = getActiveModelConfig();
+        const enriched = model_config ? { ...payload, model_config } : payload;
+        setError(null);
+        wsRef.current.send(JSON.stringify(enriched));
+      }, []);
+
+      const handleStart = useCallback(() => {
+        if (!input.trim()) {
+          setError('请输入灵感');
+          return;
+        }
+        // M13：3 个分支
+        // 1. state==='complete' 且 activeSid → 续写下一集（同 session）
+        // 2. state==='idle' 且 isViewing → 显式续接（向后兼容旧前端逻辑：fork 子 session）
+        // 3. state==='idle' → 新建 session
+        const isNextEpisode = state === 'complete' && activeSid;
+        let payload;
+        if (isNextEpisode) {
+          setMessages(prev => [...prev, {
+            role: 'user',
+            content: '[续写] ' + input,
+            isFinal: true,
+          }]);
+          payload = { type: 'start', raw_text: input, session_id: activeSid };
+        } else if (isViewing && canForkFromViewing) {
+          // 旧 fork 兼容路径（M12）—— 新前端不用
+          setMessages([{
+            role: 'user',
+            content: input + '（fork 自 ' + activeSid + '）',
+            isFinal: true,
+          }]);
+          payload = {
+            type: 'start',
+            raw_text: input,
+            parent_session_id: activeSid,
+          };
+        } else if (isViewing && !canForkFromViewing) {
+          setError('该 session 无 fact_sheet，无法续接（请新建或选有 fact_sheet 的 session）');
+          return;
+        } else {
+          setMessages([{
+            role: 'user',
+            content: input,
+            isFinal: true,
+          }]);
+          payload = { type: 'start', raw_text: input };
+        }
+        send(payload);
+        setInput('');
+      }, [input, canForkFromViewing, activeSid, isViewing, state, send]);
+
+      const handleContinue = useCallback(() => {
+        const sid = activeSid || sessionId;
+        if (!sid) return;
+        // 双闸（C 方案前端闸严化）：Writer 必须含结构化段才算 review 完成
+        if (!hasValidWriterOutput) {
+          setError('Writer 输出不完整（缺少 ## 故事梗概 等段），不能进 Step 2。请先让 Writer 重写或编辑 runs/<sid>/writer_output.md');
+          setState('error');
+          return;
+        }
+        setMessages((prev) => [...prev, {
+          role: 'user',
+          content: '[继续] 跑 Step 2',
+          isFinal: true,
+        }]);
+        send({ type: 'continue', session_id: sid });
+      }, [activeSid, sessionId, hasValidWriterOutput, send]);
+
+      const handleRewrite = useCallback(() => {
+        if (!input.trim()) {
+          setError('请输入反馈');
+          return;
+        }
+        const sid = activeSid || sessionId;
+        if (!sid) return;
+        setMessages((prev) => [...prev, {
+          role: 'user',
+          content: '[反馈] ' + input,
+          isFinal: true,
+        }]);
+        send({
+          type: 'rewrite',
+          session_id: sid,
+          feedback: input,
+        });
+        setInput('');
+      }, [input, activeSid, sessionId, send]);
+
+      // M13 deprecated: handleUserAddition 不再使用
+      // 后端收到 {type:'user_addition'} 仍兼容但 no-op（user_additions 字段已删）
+      const handleUserAddition = useCallback(() => {
+        // 留空以防后端兼容逻辑被触发；新前端不用
+        console.warn('[M13] user_addition 已废弃，请用 写下一集 按钮或 重写本集');
+      }, []);
+
+      const handleKeyDown = useCallback((ev) => {
+        if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
+          ev.preventDefault();
+          if (state === 'idle' && input.trim()) handleStart();
+          else if (state === 'after_writer' && input.trim()) handleRewrite();
+          else if (state === 'complete' && input.trim()) handleStart();
+        }
+      }, [state, input, handleStart, handleRewrite]);
+
+      // ============== 副作用：WebSocket + 拉侧栏（放在所有 handler 之后） ==============
+
+      // WebSocket 连接 — 只挂载一次（空 deps），避免 input/state 变化导致重连
+      useEffect(() => {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${proto}//${location.host}/ws`);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          console.log('[ws] connected');
+        };
+
+        ws.onmessage = (ev) => {
+          let msg;
+          try { msg = JSON.parse(ev.data); } catch (e) {
+            console.warn('[ws] bad json:', ev.data);
+            return;
+          }
+          // 通过 ref 调用最新版本的 handleServerMessage
+          // （避免 stale closure，且 ws.onmessage 不会因函数体重建而触发重连）
+          if (handleServerMessageRef.current) {
+            handleServerMessageRef.current(msg);
+          }
+        };
+
+        ws.onerror = (err) => {
+          console.error('[ws] error', err);
+          setError('WebSocket 连接错误');
+        };
+
+        ws.onclose = () => {
+          console.log('[ws] closed');
+        };
+
+        return () => ws.close();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []); // 只挂载一次
+
+      // 挂载时拉侧栏列表
+      useEffect(() => { loadSessions(); }, [loadSessions]);
+
+      // 兜底：把所有 handler 暴露到 window，让 document 委托能调用
+      useEffect(() => {
+        window.__appHandlers = {
+          selectSession: handleSelectSession,
+          newSession: handleNewSession,
+          refreshList: loadSessions,
+          start: handleStart,
+          rewrite: handleRewrite,
+          continue: handleContinue,
+          userAddition: handleUserAddition,
+          clearInput: () => setInput(''),
+          // M13：drawer / tab 操作
+          closeDrawer: () => setResultsVisible(false),
+          openDrawer: () => setResultsVisible(true),
+          setTab: (epId) => setActiveTabId(epId),
+          // 删除 session（兜底 handler；React onClick 是主路径，但捕获阶段的
+          // document 委托会先跑——所以也得暴露一份到这里）
+          deleteSession: (s) => setDeleteTarget(s),
+          cancelDelete: () => setDeleteTarget(null),
+          confirmDelete: handleConfirmDelete,
+          // 复制最终脚本（results tab 头部小按钮；读 activeTabRef.current 拿当前 tab）
+          copyScript: handleCopyScript,
+          // M25+ 模型设置 modal：所有带 [data-action] 的按钮都需要暴露
+          // 否则 capture-phase 兜底 listener 会"消费"click 但找不到 handler
+          saveConfig: () => saveConfig(),
+          openConfig: () => openConfigModal(),
+        };
+        console.log('[App] handlers exposed to window.__appHandlers');
+      }, [handleSelectSession, handleNewSession, loadSessions, handleStart, handleRewrite, handleContinue, handleUserAddition, handleConfirmDelete, handleCopyScript, saveConfig, openConfigModal]);
+
+      const sl = statusLabel(state);
+
+      // M12: 侧栏列表项渲染
+      const renderSidebar = () => {
+        return e('div', { className: 'sidebar' + (isRunning ? ' sidebar-disabled' : '') },
+          e('div', { className: 'sidebar-header' },
+            e('button', { 'data-action': 'newSession', onClick: handleNewSession, disabled: isRunning },
+              '＋ 新会话'),
+            e('button', { className: 'secondary', 'data-action': 'openConfig', onClick: openConfigModal, style: { fontSize: 11 } },
+              '⚙️ 模型设置'),
+            e('button', { className: 'secondary', 'data-action': 'refreshList', onClick: loadSessions, disabled: isRunning, style: { fontSize: 11 } },
+              '🔄 刷新列表'),
+          ),
+          e('div', { className: 'sidebar-list' },
+            sessions.length === 0
+              ? e('div', { className: 'sidebar-empty' }, '暂无 session')
+              : sessions.map(s => {
+                  const isActive = s.session_id === activeSid;
+                  const noFact = !s.has_fact_sheet;
+                  const epCount = s.current_episode || 1;
+                  return e('div', {
+                    key: s.session_id,
+                    'data-sid': s.session_id,
+                    className: 'sidebar-item' +
+                      (isActive ? ' active' : '') +
+                      (noFact ? ' no-fact' : ''),
+                    onClick: () => handleSelectSession(s.session_id),
+                    title: s.session_id + (noFact ? '（无 fact_sheet，无法续接）' : ''),
+                  },
+                    e('button', {
+                      className: 'sidebar-item-delete',
+                      'data-action': 'deleteSession',
+                      'data-sid': s.session_id,
+                      'data-title': s.title || s.session_id,
+                      title: '删除对话',
+                      onClick: (ev) => {
+                        ev.stopPropagation();
+                        setDeleteTarget(s);
+                      },
+                    }, '×'),
+                    e('div', { className: 'title' }, s.title || s.session_id),
+                    e('div', { className: 'meta' },
+                      e('span', { className: 'badge ' + (s.current_step || 'start') }, s.current_step || 'start'),
+                      // M13：显示已写集数
+                      epCount > 1 && e('span', { style: { fontSize: 10, color: 'var(--writer)' } }, `📺 ${epCount} 集`),
+                      s.parent_session_id && e('span', { style: { fontSize: 10 } }, '↳ fork 旧版'),
+                      s.created_at && e('span', null, s.created_at.slice(5, 16).replace('T', ' ')),
+                    ),
+                    s.current_inspiration && epCount > 1 && e('div', {
+                      style: { fontSize: 11, color: 'var(--muted)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+                    }, '最新灵感: ' + s.current_inspiration.slice(0, 18)),
+                  );
+                }),
+          ),
+
+          // M16：模型配置 modal（modal 渲染在主结构外层，靠 fixed 定位）
+          configModalOpen && e('div', {
+            className: 'modal-backdrop',
+            onClick: (ev) => { if (ev.target.className === 'modal-backdrop') closeConfigModal(); },
+          },
+            e('div', { className: 'modal' },
+              e('h2', null, '⚙️ 模型设置'),
+              currentConfig
+                ? e('div', { className: 'modal-sub' },
+                    '当前生效：' + currentConfig.provider + ' / ' +
+                    currentConfig.main_model +
+                    (currentConfig.api_key_set ? '  ·  api_key 已设置' : '  ·  未配 api_key'))
+                : e('div', { className: 'modal-sub' }, '加载中...'),
+
+              e('label', null, '预设'),
+              e('select', {
+                value: configForm.provider,
+                onChange: (ev) => onProviderChange(ev.target.value),
+              },
+                e('option', { value: 'deepseek' }, 'DeepSeek（国内便宜）'),
+                e('option', { value: 'qwen' }, 'Qwen 通义千问（阿里 DashScope）'),
+                e('option', { value: 'openai' }, 'OpenAI（官方端点）'),
+                e('option', { value: 'custom' }, '自定义（任意 OpenAI 兼容端点）'),
+              ),
+              e('div', { className: 'preset-info' },
+                (PRESETS[configForm.provider] || {}).desc || ''),
+
+              e('label', null, 'Base URL'),
+              e('input', {
+                type: 'text',
+                value: configForm.base_url,
+                placeholder: (PRESETS[configForm.provider] || {}).base_url,
+                onChange: (ev) => setConfigForm({ ...configForm, base_url: ev.target.value }),
+              }),
+
+              e('label', null, '轻量模型（Host 用）'),
+              e('input', {
+                type: 'text',
+                value: configForm.light_model,
+                placeholder: (PRESETS[configForm.provider] || {}).light_model,
+                onChange: (ev) => setConfigForm({ ...configForm, light_model: ev.target.value }),
+              }),
+
+              e('label', null, '主力模型（Writer / Storyboard / DP / Director）'),
+              e('input', {
+                type: 'text',
+                value: configForm.main_model,
+                placeholder: (PRESETS[configForm.provider] || {}).main_model,
+                onChange: (ev) => setConfigForm({ ...configForm, main_model: ev.target.value }),
+              }),
+
+              e('label', null, 'API Key'),
+              e('div', { className: 'field-row' },
+                e('input', {
+                  type: showApiKey ? 'text' : 'password',
+                  value: configForm.api_key,
+                  placeholder: currentConfig?.api_key_set
+                    ? '已保存：' + currentConfig.api_key + '（留空保留）'
+                    : '填入你的 API key',
+                  onChange: (ev) => setConfigForm({ ...configForm, api_key: ev.target.value }),
+                }),
+                e('button', {
+                  className: 'secondary',
+                  onClick: () => setShowApiKey(!showApiKey),
+                  title: showApiKey ? '隐藏' : '显示',
+                }, showApiKey ? '🙈' : '👁'),
+              ),
+              currentConfig?.api_key_set && e('div', { className: 'current-key' },
+                '服务器端已存：' + currentConfig.api_key + '（不填则保留）'),
+
+              e('details', null,
+                e('summary', null, '高级（超时 / 重试）'),
+                e('div', { className: 'row-2' },
+                  e('div', null,
+                    e('label', null, '超时（秒）'),
+                    e('input', {
+                      type: 'number',
+                      min: 5,
+                      max: 600,
+                      value: configForm.timeout,
+                      onChange: (ev) => setConfigForm({ ...configForm, timeout: ev.target.value }),
+                    }),
+                  ),
+                  e('div', null,
+                    e('label', null, '最大重试'),
+                    e('input', {
+                      type: 'number',
+                      min: 0,
+                      max: 10,
+                      value: configForm.max_retries,
+                      onChange: (ev) => setConfigForm({ ...configForm, max_retries: ev.target.value }),
+                    }),
+                  ),
+                ),
+                e('div', { className: 'hint', style: { fontSize: '12px', color: '#666', marginTop: '6px' } },
+                  '默认 180s / 重试 2 次。推理模型（deepseek-r1/qwen3-thinking）思考时间 30-90s，'
+                  + '若见 RemoteProtocolError，优先把超时调到 240；测试按钮 8s 硬上限仅做连通性检查。'),
+              ),
+
+              configTestResult && e('div', {
+                className: 'test-result ' + (configTestResult.ok ? 'ok' : 'err'),
+              },
+                configTestResult.ok
+                  ? '✓ 连接成功（返回：' + configTestResult.sample + '）'
+                  : '✗ ' + configTestResult.error),
+
+              e('div', { className: 'actions' },
+                e('button', {
+                  className: 'secondary',
+                  onClick: closeConfigModal,
+                }, '取消'),
+                e('button', {
+                  onClick: testConfig,
+                  disabled: testingConfig,
+                  className: 'secondary',
+                }, testingConfig ? '测试中...' : '🔌 测试连接'),
+                e('button', {
+                  onClick: saveConfig,
+                  disabled: savingConfig,
+                  'data-action': 'saveConfig',
+                }, savingConfig ? '保存中...' : '保存'),
+              ),
+            ),
+          ),
+
+          // 删除 session 确认 modal
+          deleteTarget && e('div', {
+            className: 'modal-backdrop',
+            'data-action': 'deleteConfirmBackdrop',
+            onClick: (ev) => { if (ev.target.className === 'modal-backdrop') setDeleteTarget(null); },
+          },
+            e('div', { className: 'modal', style: { maxWidth: 420 } },
+              e('h3', null, '删除对话'),
+              e('p', null,
+                '确定要删除对话 ',
+                e('code', null, deleteTarget.session_id),
+                ' 吗？此操作不可恢复。',
+              ),
+              e('div', { className: 'modal-actions' },
+                e('button', {
+                  className: 'btn-secondary',
+                  'data-action': 'cancelDelete',
+                  onClick: () => setDeleteTarget(null),
+                }, '取消'),
+                e('button', {
+                  className: 'btn-danger',
+                  'data-action': 'confirmDelete',
+                  onClick: handleConfirmDelete,
+                }, '删除'),
+              ),
+            ),
+          ),
+        );
+      };
+
+      return e('div', { style: { display: 'flex', flexDirection: 'row', width: '100%', height: '100%' } },
+        renderSidebar(),
+
+        e('main', null,
+          e('header', null,
+            e('h1', null, '🎬 AutoGen 即梦工作流'),
+            e('span', { className: 'status ' + sl.cls }, sl.text),
+            activeSid && e('span', { className: 'session-id' }, 'sid: ' + activeSid + (isViewing ? '（查看）' : '')),
+            isViewing && e('span', {
+              className: 'session-id',
+              style: { color: canForkFromViewing ? 'var(--storyboard)' : 'var(--error)' },
+            }, canForkFromViewing ? '✏️ 可在此基础上写续集' : '⚠ 无 fact_sheet，无法续接'),
+            // M25+：未配置 API key → 黄色警告条
+            !hasConfig && e('span', {
+              className: 'session-id',
+              style: {
+                color: 'var(--dp)',
+                background: 'rgba(212, 160, 23, 0.1)',
+                padding: '4px 10px',
+                borderRadius: '4px',
+                border: '1px solid var(--dp)',
+                cursor: 'pointer',
+              },
+              onClick: openConfigModal,
+              title: '点击配置 API key',
+            }, '⚠️ 未配置 API key — 点此设置'),
+          ),
+
+          // 群聊区
+          e('div', { className: 'chat', ref: chatRef },
+            // M25+：首次进入（无 config）→ 醒目引导卡
+            !hasConfig && messages.length === 0 && e('div', {
+              style: {
+                maxWidth: 560,
+                margin: '60px auto',
+                padding: '32px 28px',
+                background: 'var(--panel)',
+                border: '1px solid var(--dp)',
+                borderRadius: '12px',
+                textAlign: 'center',
+              },
+            },
+              e('div', { style: { fontSize: '48px', marginBottom: '12px' } }, '👋'),
+              e('h2', { style: { margin: '0 0 12px', fontSize: '18px' } }, '欢迎使用 AutoGen 即梦工作流'),
+              e('p', { style: { color: 'var(--muted)', lineHeight: 1.6, fontSize: '14px' } },
+                '第一次使用需要先配置你的 LLM API key（DeepSeek / Qwen / OpenAI 之一）。',
+                e('br'),
+                '配置只存在你浏览器的 localStorage，不会上传到服务器。',
+              ),
+              e('button', {
+                onClick: openConfigModal,
+                style: { marginTop: '20px', fontSize: '14px', padding: '10px 24px' },
+              }, '⚙️ 立即配置 API key'),
+              e('div', { style: { marginTop: '20px', fontSize: '12px', color: 'var(--muted)' } },
+                '推荐 DeepSeek（国内便宜，V3 输入 1 元/百万 token）'),
+            ),
+            messages.length === 0 && state === 'idle' && hasConfig && e('div', { style: { color: 'var(--muted)', textAlign: 'center', padding: '40px 0' } },
+              '👋 输入灵感开始生成视频脚本'),
+            loadingSession && e('div', { style: { color: 'var(--muted)', textAlign: 'center', padding: '20px 0' } },
+              '⏳ 加载中...'),
+            messages.map((m, i) => {
+              const meta = ROLE_META[m.role] || ROLE_META.system;
+              const isUser = m.role === 'user';
+              // M20: 推理模型的 thinking 独白 → 折叠成"💭 思考中..."
+              if (m.isThinking) {
+                const preview = (m.content || '').length > 60
+                  ? '…' + m.content.slice(-60).replace(/\n+/g, ' ')
+                  : (m.content || '').replace(/\n+/g, ' ');
+                return e('div', { key: i, className: 'msg thinking-msg' },
+                  e('div', { className: avatarClass(m.role) }, meta.short),
+                  e('div', { className: 'bubble thinking' + (!m.isFinal ? ' streaming' : '') },
+                    e('div', { className: 'role-name' }, '💭 ' + meta.label + ' 思考中...'),
+                    e('div', { className: 'thinking-preview' }, preview),
+                  ),
+                );
+              }
+              // 渲染策略：
+              // - 用户消息：原文（raw），保留回车
+              // - 角色消息：永远走 MD 渲染（流式中也是，deepseek/ChatGPT 那种效果）
+              const bubbleClass = 'bubble ' +
+                (isUser ? 'raw' : 'md-rendered') +
+                (!m.isFinal ? ' streaming' : '');
+              return e('div', { key: i, className: 'msg' },
+                e('div', { className: avatarClass(m.role) }, meta.short),
+                e('div', { className: bubbleClass },
+                  e('div', { className: 'role-name' }, meta.label),
+                  isUser
+                    ? m.content
+                    : e('div', { dangerouslySetInnerHTML: { __html: cachedMarkdown(m.content) } }),
+                ),
+              );
+            }),
+
+            // 暂停面板（after_writer 时）
+            state === 'after_writer' && e('div', { className: 'pause-panel' },
+              e('h3', null, hasValidWriterOutput
+                ? '⏸ Step 1 完成 — 请 review 后再继续'
+                : '⏸ Step 1 完成（Writer 输出不完整，需重写）'),
+              writerOutput && e('div', { className: 'writer-preview' }, writerOutput),
+              !hasValidWriterOutput && e('div', {
+                style: { padding: '8px', background: 'var(--error-bg, #fee)', border: '1px solid var(--error)', borderRadius: '4px', marginBottom: '8px', fontSize: '13px' },
+              },
+                '⚠ Writer 输出缺少 ## 故事梗概 / ## 场景列表 / ## 人物 等结构段，不能进 Step 2。',
+                '点击下方"重写"或直接编辑 runs/<sid>/writer_output.md 后再继续。'
+              ),
+              e('div', { className: 'pause-actions' },
+                e('button', {
+                  className: 'success',
+                  'data-action': 'continue',
+                  onClick: handleContinue,
+                  disabled: isRunning || !hasValidWriterOutput,  // M22 前端闸严化
+                  title: !hasValidWriterOutput ? 'Writer 输出不完整，无法继续' : '',
+                }, isViewing ? '✅ 接着跑 Step 2' : '✅ 满意，跑 Step 2'),
+                e('button', { className: 'secondary', 'data-action': 'clearInput', onClick: () => setInput(''), disabled: isRunning },
+                  '✏️ 输入反馈让 Writer 重写（用下方输入框）'),
+              ),
+              e('div', { style: { marginTop: '8px', fontSize: '12px', color: 'var(--muted)' } },
+                '提示：直接编辑 runs/<session_id>/writer_output.md 也可，Step 2 会自动用编辑后的版本'),
+              activeSid && e('div', { style: { marginTop: '4px' } },
+                e('span', { className: 'session-id' }, 'session_id: ' + activeSid),
+              ),
+            ),
+
+            // 错误
+            error && e('div', { className: 'error-msg' }, '❌ ' + error),
+          ),
+
+          // M13：产物 drawer（多集 tabs + 关闭按钮）
+          resultsTabs.length > 0 && resultsVisible && (() => {
+            const activeTab = resultsTabs.find(t => t.ep_id === activeTabId) || resultsTabs[0];
+            activeTabRef.current = activeTab;  // 兜底 handler 复制时从这里读
+            const isCopied = copiedEpId === activeTab?.ep_id;
+            return e('div', { className: 'results' },
+              e('div', { style: { display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)' } },
+                e('div', { className: 'tabs', style: { flex: 1, borderBottom: 'none' } },
+                  resultsTabs.map(t => {
+                    const isActive = t.ep_id === activeTabId;
+                    const label = `集 ${t.ep_id}` + (t.inspiration_preview ? `: ${t.inspiration_preview}` : '');
+                    return e('div', {
+                      key: t.ep_id,
+                      'data-action': `tab-${t.ep_id}`,
+                      className: 'tab' + (isActive ? ' active' : ''),
+                      onClick: () => setActiveTabId(t.ep_id),
+                      title: label,
+                    }, label);
+                  }),
+                ),
+                e('button', {
+                  className: 'secondary',
+                  'data-action': 'copyScript',
+                  onClick: handleCopyScript,
+                  disabled: !activeTab || !activeTab.content,
+                  style: { marginRight: 6, padding: '4px 10px', fontSize: 12 },
+                  title: '复制当前脚本到剪贴板',
+                }, isCopied ? '✓ 已复制' : '📋 复制'),
+                e('button', {
+                  className: 'secondary',
+                  'data-action': 'closeDrawer',
+                  onClick: () => setResultsVisible(false),
+                  style: { marginRight: 8, padding: '6px 12px', fontSize: 14 },
+                  title: '关闭画框（数据保留）',
+                }, '×'),
+              ),
+              activeTab && e('div', {
+                className: 'tab-content md-body',
+                dangerouslySetInnerHTML: {
+                  __html: activeTab.content
+                    ? cachedMarkdown(activeTab.content)
+                    : '<p style="color:var(--muted)">(无 prompt)</p>',
+                },
+              }),
+              e('div', { style: { padding: '8px 24px 16px', fontSize: 11, color: 'var(--muted)', maxWidth: 900, margin: '0 auto', width: '100%' } },
+                'session_id: ' + activeSid,
+              ),
+            );
+          })(),
+
+          // M13：关闭后显示"查看脚本"按钮
+          resultsTabs.length > 0 && !resultsVisible && e('div', {
+            style: { padding: '6px 24px', borderTop: '1px solid var(--border)', background: 'var(--panel)', fontSize: 12 },
+          },
+            e('button', {
+              className: 'secondary',
+              'data-action': 'openDrawer',
+              onClick: () => setResultsVisible(true),
+              style: { fontSize: 12, padding: '6px 12px' },
+            }, `📜 查看脚本（${resultsTabs.length} 集）`),
+          ),
+
+          // 输入区（M13：4 状态分支按钮）
+          e('div', { className: 'input-area' },
+            e('div', { className: 'input-row' },
+              e('textarea', {
+                value: input,
+                onChange: (ev) => setInput(ev.target.value),
+                onKeyDown: handleKeyDown,
+                // M13：4 状态 placeholder（M25+：未配置 key 时替换为引导）
+                placeholder: !hasConfig
+                  ? '⚠️ 请先点右上角 ⚙️ 填写 API key'
+                  : state === 'idle'
+                    ? (isViewing
+                      ? '续接此 session：写新灵感（按 Ctrl+Enter 提交）'
+                      : '新剧本灵感（自然语言，如：15秒赛博朋克女黑客短片 4K）')
+                    : state === 'after_writer'
+                      ? (isViewing
+                        ? '重写本集的反馈（按 Ctrl+Enter 提交）'
+                        : '重写本集的反馈（让 Writer 重写）')
+                      : state === 'complete'
+                        ? '下一集灵感（人物沿用，剧情推进，按 Ctrl+Enter）'
+                        : '跑中...',
+                disabled: !hasConfig || isRunning || state === 'running_step1' || state === 'running_step2' || state === 'running_rewrite',
+              }),
+              // M13：4 状态按钮（M25+：未配置 key 时按钮也禁用）
+              state === 'idle' && e('button', {
+                'data-action': 'start',
+                onClick: handleStart,
+                disabled: !hasConfig || isRunning || !input.trim(),
+                title: !hasConfig ? '请先在 ⚙️ 设置里配置 API key' : '',
+              }, isViewing ? '✏️ 写续集（旧 fork）' : '🚀 启动'),
+              state === 'after_writer' && e('button', {
+                'data-action': 'rewrite',
+                onClick: handleRewrite,
+                disabled: !hasConfig || isRunning || !input.trim(),
+              }, '✏️ 重写本集'),
+              state === 'after_writer' && e('button', {
+                className: 'success',
+                'data-action': 'continue',
+                onClick: handleContinue,
+                disabled: !hasConfig || isRunning,
+              }, isViewing ? '✅ 接着跑 Step 2' : '✅ 跑 Step 2'),
+              state === 'complete' && e('button', {
+                className: 'success',
+                'data-action': 'start',
+                onClick: handleStart,
+                disabled: !hasConfig || isRunning || !input.trim(),
+              }, '➡️ 写下一集'),
+            ),
+            e('div', { style: { maxWidth: 900, margin: '8px auto 0', fontSize: 11, color: 'var(--muted)' } },
+              'Ctrl+Enter 提交 | 当前状态：' + sl.text +
+              (state === 'complete' && activeSid ? '（可写下一集同 session）' :
+                isViewing ? '（查看模式）' : '') +
+              (!hasConfig ? ' · ⚠️ 未配置 API key，无法启动' : ''),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 启动错误显示：如果 React 渲染失败，把错误显示在页面上
+    function showFatal(msg) {
+      const el = document.getElementById('root');
+      if (!el) return;
+      el.innerHTML = '<div style="background:#2a1a1a;border:1px solid #ff6b6b;color:#ff8888;padding:20px;margin:20px;border-radius:8px;font-family:ui-monospace,monospace;font-size:13px;white-space:pre-wrap;">' +
+        '⚠️ 启动失败\n\n' + String(msg) + '</div>';
+    }
+
+    window.addEventListener('error', (ev) => {
+      console.error('[window.error]', ev.message, '@', ev.filename, ':', ev.lineno);
+    });
+    window.addEventListener('unhandledrejection', (ev) => {
+      console.error('[unhandledrejection]', ev.reason);
+    });
+
+    try {
+      if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+        showFatal('React / ReactDOM 未加载。\n请检查 /static/vendor/react.production.min.js 是否能访问（Network 面板）。');
+      } else if (typeof marked === 'undefined') {
+        showFatal('marked 未加载。\n请检查 /static/vendor/marked.min.js 是否能访问（Network 面板）。');
+      } else {
+        const rootEl = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootEl);
+        // 加全局错误捕获（React 渲染错误会冒泡到这里）
+        root.render(e(App));
+        console.log('[boot] React mounted OK');
+        // React 渲染完后删掉 boot banner
+        if (window.__bootEl && window.__bootEl.parentNode) {
+          window.__bootEl.parentNode.removeChild(window.__bootEl);
+        }
+      }
+    } catch (err) {
+      showFatal((err && err.message || err) + '\n\n' + (err && err.stack || ''));
+    }
+  </script>
+</body>
+</html>

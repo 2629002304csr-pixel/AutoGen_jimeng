@@ -1,0 +1,29 @@
+services:
+  jimeng:
+    build: .
+    image: autogen-jimeng-workflow:local
+    container_name: jimeng-web
+    ports:
+      - "8000:8000"
+    volumes:
+      # 持久化 session 文件（不含 API key —— 配置走浏览器 localStorage）
+      - ./runs:/app/runs
+      # 可选：自定义 prompts（注释掉就用镜像内置版）
+      # - ./prompts:/app/prompts:ro
+    environment:
+      # 服务器级 fallback（用户没在浏览器填 key 时用）；一般留空
+      # 真正的 API key 由每个用户在浏览器 ⚙️ 设置里填自己的
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
+      # M27.2：本地 Docker on WSL2/严格 NAT/公司代理遇 RemoteProtocolError 时
+      # 设 1 强制走非流式（牺牲一点实时性换取稳定性）
+      # Railway/VPS 通常不需要 —— 默认 0
+      - JIMENG_DISABLE_STREAM=${JIMENG_DISABLE_STREAM:-0}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

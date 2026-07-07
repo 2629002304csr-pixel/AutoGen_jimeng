@@ -1,0 +1,39 @@
+# 不打进镜像的东西
+.git
+.gitignore
+.github
+.claude
+.pytest_cache
+.test_cache
+.vscode
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+.venv
+venv
+env
+
+# 运行时数据（保留在宿主机 volume）
+runs
+logs
+
+# 测试和探针文件
+test_*.py
+test_*.js
+probe_*.py
+
+# 依赖锁（避免装错版本）
+# requirements.txt / pyproject.toml 保留 —— Dockerfile 装包用
+
+# 环境变量
+.env
+.env.local
+
+# 大文件
+node_modules
+
+# 文档（开发参考用，部署时不需要）
+M2_TUNING.md
+*.log

@@ -1,0 +1,10 @@
+{
+  "provider": "deepseek",
+  "base_url": "https://api.deepseek.com/v1",
+  "light_model": "",
+  "main_model": "deepseek-v4-pro",
+  "api_key": "sk-5e25c554ee294916af9087ebbc069dfb",
+  "timeout": 60.0,
+  "max_retries": 3,
+  "model_info_overrides": {}
+}

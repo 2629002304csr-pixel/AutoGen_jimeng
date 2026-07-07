@@ -1,0 +1,16 @@
+{
+  "episodes": [
+    {
+      "ep_id": 1,
+      "title": "集 1",
+      "inspiration": "",
+      "created_at": "2026-07-02T22:38:55.878241"
+    },
+    {
+      "ep_id": 2,
+      "title": "集 2",
+      "inspiration": "",
+      "created_at": "2026-07-02T22:44:07.454528"
+    }
+  ]
+}

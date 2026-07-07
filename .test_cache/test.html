@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>React 最小测试</title>
+  <script src="file:///D:/myproject/AutoGen_gmeng/.test_cache/react.js"></script>
+  <script src="file:///D:/myproject/AutoGen_gmeng/.test_cache/dom.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 30px; background: #1a1a26; color: #fff; }
+    button { padding: 12px 24px; font-size: 16px; margin: 8px; cursor: pointer; }
+    .log { background: #2a2a3a; padding: 12px; border-radius: 6px; margin-top: 16px; font-family: monospace; min-height: 100px; }
+    .ok { color: #5c5; }
+    .bad { color: #ff6b6b; }
+  </style>
+</head>
+<body>
+  <h1>React 18 最小测试</h1>
+  <p>如果按钮可以增加计数 → React onClick 工作正常。问题在主页面代码里。</p>
+  <div id="root"></div>
+  <script>
+    const { useState } = React;
+    const e = React.createElement;
+
+    function TestApp() {
+      const [count, setCount] = useState(0);
+      const [logs, setLogs] = useState([]);
+      const addLog = (msg) => {
+        console.log('[TestApp]', msg);
+        setLogs(prev => [...prev, msg + ' (count=' + count + ')']);
+      };
+
+      return e('div', null,
+        e('button', { onClick: () => { setCount(c => c + 1); addLog('clicked +1'); } },
+          '➕ +1 (count=' + count + ')'),
+        e('button', { onClick: () => { setCount(0); addLog('reset'); }, style: { background: '#ff6b6b' } },
+          '🔄 reset'),
+        e('div', { className: 'log' },
+          e('h3', null, 'Event log:'),
+          logs.length === 0
+            ? e('p', { className: 'bad' }, '（无 log — 说明 button 没响应）')
+            : logs.map((l, i) => e('div', { key: i, className: 'ok' }, '✓ ' + l))
+        )
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(e(TestApp));
+    console.log('[test-page] React mounted OK');
+  </script>
+</body>
+</html>
